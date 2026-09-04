@@ -32,6 +32,7 @@ export function useGrove() {
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
   const [profile, setProfile] = useState(null);   // { grade } once set up
   const [setupGrade, setSetupGrade] = useState("");
+  const [setupInterests, setSetupInterests] = useState(["", "", ""]);
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
@@ -345,5 +346,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setShowNewGrove, setSubject, setTopicText, setupGrade, showNewGrove, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }

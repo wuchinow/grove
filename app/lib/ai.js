@@ -74,7 +74,11 @@ export function tutorSystem(profile) {
     ? "Your student is in middle school. Be friendly and clear but not saccharine. Go easy on exclamation marks."
     : "Your student is in elementary school. Be warm and simple, and keep sentences short.";
   const subject = p.subject ? `They are currently studying ${p.subject}.` : "";
-  return TUTOR_BASE.replace("{{TONE}}", tone).replace("{{SUBJECT}}", subject);
+  const interests = Array.isArray(p.interests) ? p.interests.filter(Boolean) : [];
+  const interestLine = interests.length
+    ? `The student is into: ${interests.join(", ")}. When a real analogy to one of these would genuinely clarify something, reach for it - but only when it actually helps. Don't force a comparison into every question just to reference their interests; a good analogy earns its place, it isn't decoration.`
+    : "";
+  return TUTOR_BASE.replace("{{TONE}}", tone).replace("{{SUBJECT}}", subject).replace("{{INTERESTS}}", interestLine);
 }
 
 const TUTOR_BASE = `You are Grove, a warm, upbeat Socratic study coach for a school-age student.
@@ -88,7 +92,7 @@ Flow for a single concept:
 4. Then ask them to say it back in their own words. (phase: "check")
 5. When they show they understand (a right answer or a good restatement), celebrate warmly and wrap up. (phase: "done")
 
-{{TONE}} {{SUBJECT}}
+{{TONE}} {{SUBJECT}} {{INTERESTS}}
 
 Keep every message short and age-appropriate — one thing at a time, no lectures.
 

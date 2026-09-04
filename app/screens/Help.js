@@ -8,7 +8,7 @@ import Icon from "../components/Icon";
 // A full screen rather than a sheet, so it matches Progress: back top-left, room
 // to read, and no button stranded at the bottom of a scrolling panel.
 export default function Help({ g }) {
-  const { child, profile, setEditingProfile, setScreen, setSetupGrade } = g;
+  const { child, profile, setEditingProfile, setScreen, setSetupGrade, setSetupInterests } = g;
 
   const Step = ({ title, children }) => (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "14px 16px", boxShadow: "0 3px 12px rgba(58,42,32,.05)" }}>
@@ -54,8 +54,13 @@ export default function Help({ g }) {
         <div style={{ flex: 1, minHeight: 20 }} />
 
         {child && profile && (
-          <button onClick={() => { setSetupGrade(profile.grade || ""); setScreen("home"); setEditingProfile(true); }} style={{ marginTop: 18, width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 14, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <Icon name="sprout" size={16} color={C.primaryDeep} /> Change my grade ({profile.grade})
+          <button onClick={() => {
+            setSetupGrade(profile.grade || "");
+            const existing = Array.isArray(profile.interests) ? profile.interests : [];
+            setSetupInterests([existing[0] || "", existing[1] || "", existing[2] || ""]);
+            setScreen("home"); setEditingProfile(true);
+          }} style={{ marginTop: 18, width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 14, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Icon name="sprout" size={16} color={C.primaryDeep} /> Edit my grade &amp; interests
           </button>
         )}
       </div>

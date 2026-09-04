@@ -26,6 +26,9 @@ export default function Icon({ name, size = 20, color = "currentColor", strokeWi
   if (name === "trash") return (
     <svg {...common}><path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /></svg>
   );
+  if (name === "plus") return (
+    <svg {...common}><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+  );
   if (name === "chevronDown") return (
     <svg {...common}><path d="m5 9.5 7 7 7-7" /></svg>
   );

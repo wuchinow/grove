@@ -10,7 +10,7 @@ import GroveBackdrop from "../components/GroveBackdrop";
 import GroveSwitcher from "../components/GroveSwitcher";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, child, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, profile, removeTree, saveState, selected, setEditingProfile, setScreen, setSelected, setSetupGrade, setTopicText, startPreview, startSession, studyEverything, topicText } = g;
+  const { activeGroveId, activeGroveName, child, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -36,29 +36,34 @@ export default function Home({ g }) {
   }, [updateScrollState]);
   const scrolls = canScrollLeft || canScrollRight;
 
-  // Not every grove needs to be on screen at once. If nothing is open: with
-  // exactly one grove, open it silently (today's returning-user experience,
-  // unchanged). With two or more, there is a real choice to make, so surface
-  // the switcher. With none yet, land directly on the "start something new"
-  // prompt below; there is nothing to switch between.
+  // With exactly one grove, open it silently: no decision to make, so this
+  // just resumes where they left off, matching the original single-grove
+  // experience. With none or several, the header below is always a clear,
+  // permanent way in; nothing pops open uninvited.
   React.useEffect(() => {
-    if (!grovesLoaded || activeGroveId || preview) return;   // applies to anonymous sessions too now
+    if (!grovesLoaded || activeGroveId || preview) return;
     if (groves.length === 1) openGrove(groves[0].id);
-    else if (groves.length > 1) setSwitcherOpen(true);
-  }, [child, grovesLoaded, activeGroveId, preview, groves.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [grovesLoaded, activeGroveId, preview, groves.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Shell>
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        {activeGroveId ? (
-          <button onClick={() => setSwitcherOpen(true)} title="Switch or add a grove" aria-label="Switch or add a grove" style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
-            <span className="disp" style={{ fontWeight: 600, fontSize: 19, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{activeGroveName || "Grove"}</span>
-            <Icon name="chevronDown" size={15} color={C.stone} strokeWidth={2.4} />
-          </button>
-        ) : (
-          <Logo />
-        )}
+        {(() => {
+          const label = activeGroveId ? (activeGroveName || "Grove") : groves.length > 0 ? "Choose a grove" : "New grove";
+          const hint = activeGroveId ? "Switch or add a grove" : groves.length > 0 ? "Choose or add a grove" : "Create your first grove";
+          const icon = activeGroveId || groves.length > 0 ? "chevronDown" : "plus";
+          return (
+            <button
+              onClick={() => { setSwitcherOpen(true); if (!activeGroveId && groves.length === 0) setShowNewGrove(true); }}
+              title={hint} aria-label={hint}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}
+            >
+              <div style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
+              <span className="disp" style={{ fontWeight: 600, fontSize: 19, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{label}</span>
+              <Icon name={icon} size={15} color={C.stone} strokeWidth={2.4} />
+            </button>
+          );
+        })()}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           <button onClick={() => setScreen("progress")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="chart" size={15} color={C.primaryDeep} /> Progress</button>
           <button onClick={() => setScreen("help")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="help" size={15} color={C.primaryDeep} /> Help</button>
@@ -175,12 +180,6 @@ export default function Home({ g }) {
               </button>
             </div>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
-
-            {!activeGroveId && groves.length > 0 && (
-              <button onClick={() => setSwitcherOpen(true)} style={{ marginTop: 10, width: "100%", background: "transparent", border: "none", cursor: "pointer", color: C.primary, fontWeight: 700, fontSize: 13, padding: "4px 0" }}>
-                Or open one of your {groves.length} groves &rarr;
-              </button>
-            )}
 
             {!has && !hideSample && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
