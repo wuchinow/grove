@@ -4,6 +4,7 @@ import { useGrove } from "./lib/useGrove";
 import Setup from "./screens/Setup";
 import Home from "./screens/Home";
 import Progress from "./screens/Progress";
+import Help from "./screens/Help";
 import Processing from "./screens/Processing";
 import Confirm from "./screens/Confirm";
 import Tutor from "./screens/Tutor";
@@ -16,6 +17,7 @@ export default function App() {
   if (g.child && g.loaded && (!g.profile || g.editingProfile)) return <Setup g={g} />;
   if (g.screen === "home") return <Home g={g} />;
   if (g.screen === "progress") return <Progress g={g} />;
+  if (g.screen === "help") return <Help g={g} />;
   if (g.screen === "processing") return <Processing g={g} />;
   if (g.screen === "confirm") return <Confirm g={g} />;
   if (g.screen === "tutor") return <Tutor g={g} />;

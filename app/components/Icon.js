@@ -20,6 +20,21 @@ export default function Icon({ name, size = 20, color = "currentColor", strokeWi
   if (name === "help") return (
     <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8.8c0 1.7-2.4 2.2-2.4 3.6" /><path d="M12 17.2h.01" /></svg>
   );
+  if (name === "pencil") return (
+    <svg {...common}><path d="M4 20h4L18.5 9.5a2 2 0 0 0-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></svg>
+  );
+  if (name === "trash") return (
+    <svg {...common}><path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" /></svg>
+  );
+  if (name === "chevronDown") return (
+    <svg {...common}><path d="m5 9.5 7 7 7-7" /></svg>
+  );
+  if (name === "chevronLeft") return (
+    <svg {...common}><path d="m14.5 5-7 7 7 7" /></svg>
+  );
+  if (name === "chevronRight") return (
+    <svg {...common}><path d="m9.5 5 7 7-7 7" /></svg>
+  );
   if (name === "arrowUp") return (
     <svg {...common}><path d="M12 19V5" /><path d="m6 11 6-6 6 6" /></svg>
   );

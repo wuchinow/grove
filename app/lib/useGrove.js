@@ -4,9 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { callAPI, parseJSON, fileToImage, tutorSystem, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, SAMPLE, uid } from "./ai";
 
 // ---- useGrove --------------------------------------------------------------
-// All of Grove's state and behaviour in one place: what is planted, how well it
-// is known, and the tutoring session in progress. The screens are presentational
-// and receive this object as `g`.
+// A student can have several groves, one per subject. This hook owns: the
+// student's profile (grade), the light list of their groves for the switcher,
+// whichever grove is currently open (its concepts and the tutoring session in
+// progress), and a non-saving preview of the sample grove. Screens receive the
+// whole thing as `g` and are otherwise presentational.
 export function useGrove() {
   const [screen, setScreen] = useState("home");
   const [concepts, setConcepts] = useState([]);
@@ -16,17 +18,25 @@ export function useGrove() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
   const [grewIds, setGrewIds] = useState([]);
-  const [showHelp, setShowHelp] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [child, setChild] = useState(null);      // grove id from the URL; null = session-only demo
+  const [child, setChild] = useState(null);      // student id from the URL; null = session-only demo
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
-  const [profile, setProfile] = useState(null);   // { grade, subject } once set up
+  const [profile, setProfile] = useState(null);   // { grade } once set up
   const [setupGrade, setSetupGrade] = useState("");
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
-  const stash = useRef(null);                      // the real grove, parked during a preview
+  const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName }, parked during a preview
+
+  // Multiple groves per student. `groves` is the light list (id, name, tree
+  // count) for the switcher; opening one loads its full concepts.
+  const [groves, setGroves] = useState([]);
+  const [grovesLoaded, setGrovesLoaded] = useState(false);
+  const [activeGroveId, setActiveGroveId] = useState(null);
+  const [activeGroveName, setActiveGroveName] = useState("");
+  const [newGroveName, setNewGroveName] = useState("");
+  const [showNewGrove, setShowNewGrove] = useState(false);
 
   const [queue, setQueue] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -46,31 +56,92 @@ export function useGrove() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chat, busy]);
 
-  // Load this child's grove once, if the URL names a child.
+  // Load this student once, if the URL names one (?student= or legacy ?child=).
+  // Anonymous visitors (no name in the URL) skip all of this and get the
+  // single session-only demo grove exactly as before.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const name = q.get("student") || q.get("child");
     const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
     if (!id) { setLoaded(true); return; }
     setChild(id);
-    fetch(`/api/grove?child=${encodeURIComponent(id)}`)
+    fetch(`/api/student?student=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j) { if (Array.isArray(j.concepts)) setConcepts(j.concepts); setProfile(j.profile && j.profile.grade ? j.profile : null); } })
+      .then((j) => {
+        if (j) {
+          setProfile(j.profile && j.profile.grade ? j.profile : null);
+          setGroves(Array.isArray(j.groves) ? j.groves : []);
+        }
+      })
       .catch(() => {})
-      .finally(() => setLoaded(true));
+      .finally(() => { setLoaded(true); setGrovesLoaded(true); });
   }, []);
 
-  // Save whenever the grove changes (debounced), but only after the initial load.
+  // Save the grade whenever it changes, once a student is loaded.
   useEffect(() => {
-    if (!child || !loaded || preview) return;   // a preview must never overwrite a real grove
+    if (!child || !loaded || !profile) return;
+    fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, profile }) }).catch(() => {});
+  }, [profile, child, loaded]);
+
+  // Save the open grove's concepts whenever they change (debounced).
+  useEffect(() => {
+    if (!child || !loaded || preview || !activeGroveId) return;   // a preview, or no open grove, must never write
     setSaveState("saving");
     const t = setTimeout(() => {
-      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ child, concepts, profile: profile || {} }) })
+      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id: activeGroveId, name: activeGroveName, concepts }) })
         .then((r) => setSaveState(r.ok ? "saved" : "error"))
         .catch(() => setSaveState("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [concepts, profile, child, loaded, preview]);
+  }, [concepts, child, loaded, preview, activeGroveId, activeGroveName]);
+
+  // Opening a grove: show it optimistically from the list, then fill in its
+  // concepts. Reuses the "processing" screen as a brief loading state.
+  async function openGrove(id) {
+    const entry = groves.find((g) => g.id === id);
+    setActiveGroveId(id);
+    setActiveGroveName(entry ? entry.name : "");
+    setConcepts([]); setGrewIds([]); setSelected(null);
+    setScreen("processing");
+    try {
+      const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}`);
+      const j = r.ok ? await r.json() : null;
+      if (j) { setConcepts(Array.isArray(j.concepts) ? j.concepts : []); setActiveGroveName(j.name || (entry ? entry.name : "")); }
+    } catch {}
+    setScreen("home");
+  }
+
+  // Creates a grove (empty, or seeded with concepts already extracted) and
+  // makes it the open one. Returns the new id, or null on failure.
+  async function createGrove(rawName, seedConcepts) {
+    const name = (rawName ?? newGroveName).trim() || "My grove";
+    if (!child) return null;
+    const seed = seedConcepts || [];
+    try {
+      const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, name, concepts: seed }) });
+      const j = r.ok ? await r.json() : null;
+      if (!j || !j.id) return null;
+      setGroves((prev) => [{ id: j.id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
+      setNewGroveName(""); setShowNewGrove(false);
+      setActiveGroveId(j.id); setActiveGroveName(name);
+      return j.id;
+    } catch { return null; }
+  }
+
+  function renameGrove(id, name) {
+    const clean = name.trim();
+    if (!clean || !child) return;
+    setGroves((prev) => prev.map((g) => (g.id === id ? { ...g, name: clean } : g)));
+    if (id === activeGroveId) setActiveGroveName(clean);
+    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id, name: clean }) }).catch(() => {});
+  }
+
+  function deleteGrove(id, name) {
+    if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
+    setGroves((prev) => prev.filter((g) => g.id !== id));
+    if (id === activeGroveId) { setActiveGroveId(null); setActiveGroveName(""); setConcepts([]); setGrewIds([]); setSelected(null); }
+    fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`, { method: "DELETE" }).catch(() => {});
+  }
 
   async function handleFile(e) {
     const file = e.target.files && e.target.files[0];
@@ -118,12 +189,14 @@ export function useGrove() {
   }
 
   function startPreview() {
-    stash.current = concepts;
+    stash.current = { concepts, activeGroveId, activeGroveName };
     setConcepts(SAMPLE.concepts.map((c) => ({ id: uid(), name: c.name, note: c.note, mastery: c.mastery, days: c.days, reviews: c.days })));
+    setActiveGroveId(null); setActiveGroveName("Sample grove");
     setPreview(true); setSelected(null); setGrewIds([]); setScreen("home");
   }
   function exitPreview() {
-    setConcepts(stash.current || []);
+    const prev = stash.current || { concepts: [], activeGroveId: null, activeGroveName: "" };
+    setConcepts(prev.concepts); setActiveGroveId(prev.activeGroveId); setActiveGroveName(prev.activeGroveName);
     stash.current = null;
     setPreview(false); setSelected(null); setGrewIds([]); setScreen("home");
   }
@@ -143,12 +216,19 @@ export function useGrove() {
     if (!c || !window.confirm(`Remove "${c.name}" from your grove?`)) return;
     setConcepts((prev) => prev.filter((x) => x.id !== id)); setSelected(null);
   }
-  function loadSample() {
-    setConcepts(SAMPLE.concepts.map((c) => ({ id: uid(), name: c.name, note: c.note, mastery: c.mastery, days: c.days, reviews: c.days })));
-    setScreen("home");
-  }
-  function confirmConcepts() {
+
+  // Confirming a fresh batch of concepts. If no grove is open, this is the
+  // student's first add: it becomes a new grove, auto-named from the subject,
+  // with no separate naming step in the way.
+  async function confirmConcepts() {
     const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", mastery: 0, days: 0, reviews: 0 }));
+    if (!activeGroveId) {
+      const id = await createGrove(subject, fresh);
+      if (!id) { setError("Couldn't create a grove for this. Try again."); setScreen("home"); return; }
+      setConcepts(fresh);
+      startSession(fresh.map((c) => c.id), fresh);
+      return;
+    }
     const all = [...concepts, ...fresh];
     setConcepts(all);
     startSession(fresh.map((c) => c.id), all);
@@ -177,7 +257,7 @@ export function useGrove() {
       setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [] }]);
       setPhase(j.phase || "question");
     } catch {
-      setChat([{ who: "tutor", text: "I couldn't reach the tutor. If the API key hasn't been added to Vercel yet, that's the reason. Otherwise it's probably a connection blip.", phase: "question" }]);
+      setChat([{ who: "tutor", text: "I couldn't reach the tutor just now. Tap Try again.", phase: "question" }]);
       setApiMsgs(seed); setFailed(true);
     } finally { setBusy(false); }
   }
@@ -188,7 +268,7 @@ export function useGrove() {
       if (understanding === "solid") m = Math.round(m * 0.3 + 92 * 0.7);        // correct: strong gain
       else if (understanding === "partial") m = Math.round(m * 0.5 + 66 * 0.5); // partly right: some gain
       else if (understanding === "struggling") m = m - 6;                        // a miss: never adds, can only dip
-      // "unknown" (e.g. just asked for a hint) leaves the bar unchanged
+      // "unknown" (a hint, or an honest "I don't know") leaves it unchanged
       return { ...c, mastery: Math.max(0, Math.min(100, m)) };
     }));
   }
@@ -227,5 +307,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeId, addText, exitPreview, handleTopic, preview, setPreview, setTopicText, startPreview, topicText, apiMsgs, busy, chat, child, clearGrove, concepts, confirmConcepts, editingProfile, error, failed, fileRef, grewIds, handleFile, input, leaveSession, loadSample, loaded, nextConcept, nextStage, pending, phase, profile, queue, removeTree, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setShowHelp, setSubject, setupGrade, showHelp, startConcept, startSession, studyEverything, subject, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setShowNewGrove, setSubject, setTopicText, setupGrade, showNewGrove, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }
