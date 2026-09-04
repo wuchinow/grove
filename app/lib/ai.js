@@ -65,6 +65,20 @@ export function fileToImage(file, maxDim = 1200) {
   });
 }
 
+// Opening line for a concept's first turn. Reacts to a photographed attempt if
+// there is one, teaches briefly on a genuine first exposure, otherwise goes
+// straight to a question (a return visit already had the intro).
+export function tutorSeed(c) {
+  const base = `The concept is "${c.name}"${c.note ? ` (${c.note})` : ""}.`;
+  if (c.attempt) {
+    return `${base} Here's what the student's own photographed work shows for this concept: ${c.attempt}. Start by reflecting that back to them specifically and warmly, naming what they got right and what tripped them up, before asking anything new. Then ask one question that builds on it. Don't open with a generic question that ignores their own work.`;
+  }
+  if (!c.days) {
+    return `${base} This is their first time studying it. Start with a short, plain explanation (2-4 sentences, their level) before asking anything - don't test something you haven't taught yet. Then ask one easy question that builds directly on what you just explained.`;
+  }
+  return `${base} Ask me one question to begin - pick whatever format fits (true/false, multiple choice, or open-ended). Question first, don't tell me the answer.`;
+}
+
 export function tutorSystem(profile) {
   const p = profile || {};
   const grade = p.grade || "";
@@ -115,8 +129,8 @@ Respond with ONLY a JSON object, no markdown or backticks. Inside string values,
 {"message":"<what you say>","phase":"question|hint|explain|check|done","understanding":"unknown|struggling|partial|solid","options":["<choice>", ...]}`;
 
 export const EXTRACT_SYSTEM = `You look at a photo of a student's schoolwork (notes, worksheet, study guide, textbook page, diagram, vocab list) and pull out the key concepts they need to learn.`;
-export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo. Respond with ONLY JSON, no markdown:
-{"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
+export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo. If the photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows. Respond with ONLY JSON, no markdown:
+{"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>","attempt":"<optional: what the student's own work shows for this concept, only if visible>"}]}`;
 
 export const TOPIC_SYSTEM = `You take a topic a student wants to study and break it into the handful of concepts worth learning first. The topic may be a school subject, a chapter, a single idea, or something they are simply curious about.`;
 export const TOPIC_PROMPT = (topic, grade) => `The student wants to study: "${topic}".${grade ? ` They are at this level: ${grade}.` : ""}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { callAPI, parseJSON, fileToImage, tutorSystem, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, SAMPLE, uid } from "./ai";
+import { callAPI, parseJSON, fileToImage, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, SAMPLE, uid } from "./ai";
 
 // ---- useGrove --------------------------------------------------------------
 // A student can have several groves, one per subject. This hook owns: the
@@ -35,6 +35,7 @@ export function useGrove() {
   const [setupInterests, setSetupInterests] = useState(["", "", ""]);
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
+  const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic", drives Processing's copy
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
   const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName }, parked during a preview
 
@@ -186,7 +187,7 @@ export function useGrove() {
   async function handleFile(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    setError(""); setScreen("processing");
+    setError(""); setSourceMode("photo"); setScreen("processing");
     try {
       const { data } = await fileToImage(file);
       const text = await callAPI(
@@ -211,7 +212,7 @@ export function useGrove() {
   async function handleTopic(raw) {
     const topic = (raw ?? topicText).trim();
     if (!topic) return;
-    setError(""); setTopicText(""); setScreen("processing");
+    setError(""); setTopicText(""); setSourceMode("topic"); setScreen("processing");
     try {
       const text = await callAPI(
         [{ role: "user", content: TOPIC_PROMPT(topic, profile && profile.grade) }],
@@ -262,7 +263,7 @@ export function useGrove() {
   // the subject, with no separate naming step in the way. Works identically
   // whether or not the student is signed in by name.
   async function confirmConcepts() {
-    const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", mastery: 0, days: 0, reviews: 0 }));
+    const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", attempt: p.attempt || "", mastery: 0, days: 0, reviews: 0 }));
     if (!activeGroveId) {
       const id = await createGrove(subject, fresh);
       if (!id) { setError("Couldn't create a grove for this. Try again."); setScreen("home"); return; }
@@ -290,7 +291,7 @@ export function useGrove() {
     const c = (all || concepts).find((x) => x.id === id);
     if (!c) return;
     setActiveId(id); setPhase("question"); setChat([]); setBusy(true); setFailed(false);
-    const seed = [{ role: "user", content: `The concept is "${c.name}"${c.note ? ` (${c.note})` : ""}. Ask me one question to begin - pick whatever format fits (true/false, multiple choice, or open-ended). Question first, don't tell me the answer.` }];
+    const seed = [{ role: "user", content: tutorSeed(c) }];
     try {
       const text = await callAPI(seed, tutorSystem(profile));
       const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
@@ -348,5 +349,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }
