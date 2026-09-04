@@ -42,7 +42,7 @@ export default function Home({ g }) {
   // the switcher. With none yet, land directly on the "start something new"
   // prompt below; there is nothing to switch between.
   React.useEffect(() => {
-    if (!child || !grovesLoaded || activeGroveId || preview) return;
+    if (!grovesLoaded || activeGroveId || preview) return;   // applies to anonymous sessions too now
     if (groves.length === 1) openGrove(groves[0].id);
     else if (groves.length > 1) setSwitcherOpen(true);
   }, [child, grovesLoaded, activeGroveId, preview, groves.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,7 +50,7 @@ export default function Home({ g }) {
   return (
     <Shell>
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        {child && activeGroveId ? (
+        {activeGroveId ? (
           <button onClick={() => setSwitcherOpen(true)} title="Switch or add a grove" aria-label="Switch or add a grove" style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}>
             <div style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
             <span className="disp" style={{ fontWeight: 600, fontSize: 19, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{activeGroveName || "Grove"}</span>

@@ -9,6 +9,14 @@ import { callAPI, parseJSON, fileToImage, tutorSystem, EXTRACT_SYSTEM, EXTRACT_P
 // whichever grove is currently open (its concepts and the tutoring session in
 // progress), and a non-saving preview of the sample grove. Screens receive the
 // whole thing as `g` and are otherwise presentational.
+//
+// Two persistence modes share one shape. A named student (?student=name in
+// the URL) has groves saved to Supabase via /api/student and /api/grove. An
+// anonymous visitor (no name) gets the identical multi-grove experience held
+// entirely in memory in `localGroves` below: nothing is ever sent to the
+// server, and it's gone on refresh, matching the existing "lasts for this
+// session" framing. Every function below branches on `child` internally, so
+// the screens never need to know which mode they're in.
 export function useGrove() {
   const [screen, setScreen] = useState("home");
   const [concepts, setConcepts] = useState([]);
@@ -29,14 +37,16 @@ export function useGrove() {
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
   const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName }, parked during a preview
 
-  // Multiple groves per student. `groves` is the light list (id, name, tree
-  // count) for the switcher; opening one loads its full concepts.
+  // Multiple groves per person. `groves` is the light list (id, name, tree
+  // count) for the switcher; opening one loads its full concepts. For an
+  // anonymous session, `localGroves` holds each grove's concepts in memory.
   const [groves, setGroves] = useState([]);
   const [grovesLoaded, setGrovesLoaded] = useState(false);
   const [activeGroveId, setActiveGroveId] = useState(null);
   const [activeGroveName, setActiveGroveName] = useState("");
   const [newGroveName, setNewGroveName] = useState("");
   const [showNewGrove, setShowNewGrove] = useState(false);
+  const localGroves = useRef({});
 
   const [queue, setQueue] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -57,13 +67,14 @@ export function useGrove() {
   }, [chat, busy]);
 
   // Load this student once, if the URL names one (?student= or legacy ?child=).
-  // Anonymous visitors (no name in the URL) skip all of this and get the
-  // single session-only demo grove exactly as before.
+  // An anonymous visitor (no name) still gets grovesLoaded=true immediately,
+  // starting from an empty local list, so the switcher and empty-state logic
+  // behave identically in both modes.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const name = q.get("student") || q.get("child");
     const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
-    if (!id) { setLoaded(true); return; }
+    if (!id) { setLoaded(true); setGrovesLoaded(true); return; }
     setChild(id);
     fetch(`/api/student?student=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -77,15 +88,16 @@ export function useGrove() {
       .finally(() => { setLoaded(true); setGrovesLoaded(true); });
   }, []);
 
-  // Save the grade whenever it changes, once a student is loaded.
+  // Save the grade whenever it changes, once a named student is loaded.
   useEffect(() => {
     if (!child || !loaded || !profile) return;
     fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, profile }) }).catch(() => {});
   }, [profile, child, loaded]);
 
-  // Save the open grove's concepts whenever they change (debounced).
+  // Save the open grove's concepts whenever they change (debounced), for a
+  // named student only.
   useEffect(() => {
-    if (!child || !loaded || preview || !activeGroveId) return;   // a preview, or no open grove, must never write
+    if (!child || !loaded || preview || !activeGroveId) return;
     setSaveState("saving");
     const t = setTimeout(() => {
       fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id: activeGroveId, name: activeGroveName, concepts }) })
@@ -95,10 +107,25 @@ export function useGrove() {
     return () => clearTimeout(t);
   }, [concepts, child, loaded, preview, activeGroveId, activeGroveName]);
 
-  // Opening a grove: show it optimistically from the list, then fill in its
-  // concepts. Reuses the "processing" screen as a brief loading state.
+  // The anonymous equivalent: keep the in-memory copy of the open grove in
+  // sync as it's edited, so switching away and back doesn't lose the work.
+  useEffect(() => {
+    if (child || !activeGroveId || preview) return;
+    localGroves.current[activeGroveId] = concepts;
+  }, [concepts, child, activeGroveId, preview]);
+
+  // Opening a grove. For a named student this fetches; for an anonymous
+  // session it's an instant local lookup, so it skips the loading screen
+  // entirely rather than faking a delay that doesn't exist.
   async function openGrove(id) {
     const entry = groves.find((g) => g.id === id);
+    if (!child) {
+      setActiveGroveId(id);
+      setActiveGroveName(entry ? entry.name : "");
+      setConcepts(localGroves.current[id] || []);
+      setGrewIds([]); setSelected(null); setScreen("home");
+      return;
+    }
     setActiveGroveId(id);
     setActiveGroveName(entry ? entry.name : "");
     setConcepts([]); setGrewIds([]); setSelected(null);
@@ -112,11 +139,19 @@ export function useGrove() {
   }
 
   // Creates a grove (empty, or seeded with concepts already extracted) and
-  // makes it the open one. Returns the new id, or null on failure.
+  // makes it the open one. Returns the new id, or null on failure. For an
+  // anonymous session this always succeeds and never touches the network.
   async function createGrove(rawName, seedConcepts) {
     const name = (rawName ?? newGroveName).trim() || "My grove";
-    if (!child) return null;
     const seed = seedConcepts || [];
+    if (!child) {
+      const id = uid();
+      localGroves.current[id] = seed;
+      setGroves((prev) => [{ id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
+      setNewGroveName(""); setShowNewGrove(false);
+      setActiveGroveId(id); setActiveGroveName(name);
+      return id;
+    }
     try {
       const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, name, concepts: seed }) });
       const j = r.ok ? await r.json() : null;
@@ -130,9 +165,10 @@ export function useGrove() {
 
   function renameGrove(id, name) {
     const clean = name.trim();
-    if (!clean || !child) return;
+    if (!clean) return;
     setGroves((prev) => prev.map((g) => (g.id === id ? { ...g, name: clean } : g)));
     if (id === activeGroveId) setActiveGroveName(clean);
+    if (!child) return;
     fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id, name: clean }) }).catch(() => {});
   }
 
@@ -140,6 +176,7 @@ export function useGrove() {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
     setGroves((prev) => prev.filter((g) => g.id !== id));
     if (id === activeGroveId) { setActiveGroveId(null); setActiveGroveName(""); setConcepts([]); setGrewIds([]); setSelected(null); }
+    if (!child) { delete localGroves.current[id]; return; }
     fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`, { method: "DELETE" }).catch(() => {});
   }
 
@@ -218,8 +255,9 @@ export function useGrove() {
   }
 
   // Confirming a fresh batch of concepts. If no grove is open, this is the
-  // student's first add: it becomes a new grove, auto-named from the subject,
-  // with no separate naming step in the way.
+  // first add for this grove slot: it becomes a new grove, auto-named from
+  // the subject, with no separate naming step in the way. Works identically
+  // whether or not the student is signed in by name.
   async function confirmConcepts() {
     const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", mastery: 0, days: 0, reviews: 0 }));
     if (!activeGroveId) {
