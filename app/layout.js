@@ -2,7 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "Grove",
-  description: "Snap a photo of your schoolwork and grow a grove while you study.",
+  description: "Add a photo of your schoolwork and grow a grove while you study.",
 };
 
 export const viewport = {
@@ -10,7 +10,7 @@ export const viewport = {
   initialScale: 1,
   viewportFit: "cover",
   colorScheme: "light",
-  themeColor: "#EFE4D2",
+  themeColor: "#F1E5D2",
 };
 
 export default function RootLayout({ children }) {

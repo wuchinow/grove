@@ -310,7 +310,7 @@ export default function App() {
 
         {showHelp && (
           <div onClick={() => setShowHelp(false)} style={{ position: "fixed", inset: 0, background: "rgba(45,28,16,.42)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
-            <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", padding: "10px 22px 26px" }}>
+            <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 460, background: C.card, borderRadius: "24px 24px 0 0", padding: "10px 22px 26px", boxShadow: "0 -10px 40px rgba(40,24,12,.25)" }}>
               <div style={{ width: 40, height: 4, background: C.line, borderRadius: 999, margin: "0 auto 14px" }} />
               <div className="disp" style={{ fontSize: 21, fontWeight: 600, marginBottom: 10 }}>How Grove works</div>
               <div style={{ fontSize: 14.5, lineHeight: 1.5, color: C.ink, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -322,7 +322,7 @@ export default function App() {
                 <div><b>No streaks, no daily quota.</b> Do six sessions today and none tomorrow. The grove just reflects the work you've done.</div>
               </div>
               {child && profile && (
-                <button onClick={() => { setSetupGrade(profile.grade || ""); setEditingProfile(true); setShowHelp(false); }} style={{ marginTop: 14, width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 12, borderRadius: 14, color: C.primaryDeep, fontWeight: 700, fontSize: 13.5 }}>Change my level ({profile.grade})</button>
+                <button onClick={() => { setSetupGrade(profile.grade || ""); setEditingProfile(true); setShowHelp(false); }} style={{ marginTop: 14, width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 12, borderRadius: 14, color: C.primaryDeep, fontWeight: 700, fontSize: 13.5 }}>Change my grade ({profile.grade})</button>
               )}
               <button onClick={() => setShowHelp(false)} style={{ marginTop: 8, width: "100%", border: "none", cursor: "pointer", padding: 14, borderRadius: 15, background: C.soft, color: C.primaryDeep, fontWeight: 800, fontSize: 15 }}>Got it</button>
             </div>
@@ -334,7 +334,7 @@ export default function App() {
           if (!c) return null;
           return (
             <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(45,28,16,.42)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
-              <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", padding: "10px 22px 26px" }}>
+              <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 460, background: C.card, borderRadius: "24px 24px 0 0", padding: "10px 22px 26px", boxShadow: "0 -10px 40px rgba(40,24,12,.25)" }}>
                 <div style={{ width: 40, height: 4, background: C.line, borderRadius: 999, margin: "0 auto 14px" }} />
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                   <div style={{ background: C.bg, borderRadius: 16, padding: 4 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>

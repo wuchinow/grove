@@ -1,9 +1,9 @@
-// ---- Palette: warm earth, grove of sequoias at golden hour ----------------
+// ---- Palette: warm earth, a grove at golden hour --------------------------
 export const C = {
-  ink: "#3A2A20",       // warm dark bark-brown (text)
-  sub: "#9A8471",       // warm taupe
-  bg: "#EFE4D2",        // sand / oat (app background)
-  card: "#FAF3E7",      // bone surface
+  ink: "#38281E",       // warm dark bark-brown (text)
+  sub: "#8E7967",       // warm taupe (secondary text)
+  bg: "#F1E5D2",        // sand / oat (app background)
+  card: "#FBF5EA",      // bone surface
   line: "#E4D6C0",      // warm sand line
   soft: "#EFE3CE",      // soft sand chip
   primary: "#B05A31",   // redwood / terracotta
@@ -11,9 +11,9 @@ export const C = {
   amber: "#E39A4E",     // golden hour light
   amberDeep: "#C77D34",
   sage: "#8B9A5B",      // foliage
-  sageDeep: "#6E7D45",
+  sageDeep: "#5E7340",
   stone: "#A99A85",
-  coral: "#C27B4E",     // dry / thirsty accent
+  coral: "#BC6B3E",     // needs-work accent
 };
 
 export const FONTS = `
@@ -38,4 +38,7 @@ export const FONTS = `
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
 }
 @media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }
+@media (prefers-reduced-motion: reduce){
+  .fadeUp,.pop,.grew{animation:none}
+}
 `;

@@ -68,7 +68,7 @@ export function fileToImage(file, maxDim = 1200) {
 export function tutorSystem(profile) {
   const p = profile || {};
   const grade = p.grade || "";
-  const tone = /^(9|10|11|12|college)/i.test(grade)
+  const tone = /^(9|10|11|12|college|adult)/i.test(grade)
     ? "Your student is in high school or older. Talk to them like a capable peer: plain, direct, dry. No cheerleading, no exclamation marks unless something is genuinely impressive, no baby talk, no emoji. Assume real vocabulary."
     : /^(6|7|8)/i.test(grade)
     ? "Your student is in middle school. Be friendly and clear but not saccharine. Go easy on exclamation marks."
