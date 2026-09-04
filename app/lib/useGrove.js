@@ -151,6 +151,7 @@ export function useGrove() {
       setGroves((prev) => [{ id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
       setNewGroveName(""); setShowNewGrove(false);
       setActiveGroveId(id); setActiveGroveName(name);
+      setConcepts(seed); setGrewIds([]); setSelected(null);   // never leave the previous grove's trees sitting in state
       return id;
     }
     try {
@@ -160,6 +161,7 @@ export function useGrove() {
       setGroves((prev) => [{ id: j.id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
       setNewGroveName(""); setShowNewGrove(false);
       setActiveGroveId(j.id); setActiveGroveName(name);
+      setConcepts(seed); setGrewIds([]); setSelected(null);   // never leave the previous grove's trees sitting in state
       return j.id;
     } catch { return null; }
   }
