@@ -17,7 +17,24 @@ export default function Home({ g }) {
   const thirsty = concepts.filter((c) => c.mastery < 40).length;
   const has = concepts.length > 0;
   const ordered = [...concepts].sort((a, b) => b.days - a.days || b.mastery - a.mastery);
-  const scrolls = ordered.length > 5;   // more trees than fit across a phone
+  const treeRowRef = React.useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+  const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  // Measures the real scroll position rather than guessing from tree count,
+  // since how many fit without scrolling depends on the actual screen width.
+  const updateScrollState = React.useCallback(() => {
+    const el = treeRowRef.current;
+    if (!el) { setCanScrollLeft(false); setCanScrollRight(false); return; }
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+  React.useLayoutEffect(() => { updateScrollState(); }, [ordered.length, updateScrollState]);
+  React.useEffect(() => {
+    window.addEventListener("resize", updateScrollState);
+    return () => window.removeEventListener("resize", updateScrollState);
+  }, [updateScrollState]);
+  const scrolls = canScrollLeft || canScrollRight;
 
   // Not every grove needs to be on screen at once. If nothing is open: with
   // exactly one grove, open it silently (today's returning-user experience,
@@ -70,7 +87,7 @@ export default function Home({ g }) {
           <GroveBackdrop />
           {has ? (
             <div style={{ position: "relative", zIndex: 1 }}>
-            <div className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "0 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+            <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "0 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
                 {ordered.map((c) => (
                   <button key={c.id} onClick={() => setSelected(c.id)} className={grewIds.includes(c.id) ? "grew" : ""} style={{ border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 }} title={c.name}>
                     <Tree days={c.days} mastery={c.mastery} width={68} />
@@ -87,11 +104,19 @@ export default function Home({ g }) {
         </div>
         <div style={{ background: C.card, borderTop: `1px solid ${C.line}`, padding: "11px 14px", textAlign: "center" }}>
           {has ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              {/* Chevrons sit in the legend's whitespace rather than over the trees. */}
-              {scrolls && <Icon name="chevronLeft" size={13} color={C.stone} strokeWidth={2.4} />}
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions &middot; Greener = you know it better</div>
-              {scrolls && <Icon name="chevronRight" size={13} color={C.stone} strokeWidth={2.4} />}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              {/* Reserved-width slots at the outer edges keep the text centred
+                  whether zero, one, or two arrows are showing. Which arrow
+                  shows follows the real scroll position: only right at the
+                  start, only left at the end, both in between, none if
+                  everything already fits. */}
+              <div style={{ width: 22, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden" }}>
+                <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
+              </div>
+              <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions &middot; Greener = you know it better</div>
+              <div style={{ width: 22, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden" }}>
+                <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
+              </div>
             </div>
           ) : (
             <>
