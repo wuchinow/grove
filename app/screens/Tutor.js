@@ -7,6 +7,38 @@ import Tree from "../components/Tree";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 
+// Turns a tutor message's lightweight formatting into React nodes: blank-line
+// paragraphs, "- " bullets, and **bold**. No markdown library - the tutor
+// prompt only ever needs these three, so a tiny parser keeps this dependency-free.
+function renderMessage(text) {
+  const bold = (s, key) => {
+    const parts = s.split(/\*\*(.+?)\*\*/g);
+    return parts.map((part, i) => (i % 2 === 1 ? <strong key={`${key}-${i}`}>{part}</strong> : part));
+  };
+  const blocks = text.split(/\n\s*\n/);
+  return blocks.map((block, bi) => {
+    const lines = block.split("\n").filter((l) => l.trim());
+    const isList = lines.length > 0 && lines.every((l) => /^[-\u2022]\s+/.test(l.trim()));
+    if (isList) {
+      return (
+        <ul key={bi} style={{ margin: bi === 0 ? 0 : "10px 0 0", padding: 0, listStyle: "none" }}>
+          {lines.map((l, li) => (
+            <li key={li} style={{ marginTop: li === 0 ? 0 : 4, paddingLeft: 16, position: "relative" }}>
+              <span style={{ position: "absolute", left: 0, color: C.primary }}>&bull;</span>
+              {bold(l.trim().replace(/^[-\u2022]\s+/, ""), `${bi}-${li}`)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <div key={bi} style={{ marginTop: bi === 0 ? 0 : 10 }}>
+        {bold(block, `${bi}`)}
+      </div>
+    );
+  });
+}
+
 export default function Tutor({ g }) {
   const { active, activeId, busy, chat, failed, input, leaveSession, nextConcept, phase, queue, scrollRef, send, sessionPos, sessionTotal, setInput, startConcept } = g;
     const done = phase === "done";
@@ -57,7 +89,7 @@ export default function Tutor({ g }) {
                     {m.phase && m.phase !== "question" && m.phase !== "done" && (
                       <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.primary, marginBottom: 4 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
                     )}
-                    <div>{m.text}</div>
+                    {renderMessage(m.text)}
                   </div>
                 </div>
               ) : (

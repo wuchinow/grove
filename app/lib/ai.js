@@ -27,8 +27,9 @@ export function parseJSON(text) {
     const b = body.indexOf(endKey, from);
     return b === -1 ? null : body.slice(from, b);
   };
-  const message = between('"message":"', '","phase"');
+  let message = between('"message":"', '","phase"');
   if (!message) return null;
+  message = message.replace(/\\n/g, "\n").replace(/\\"/g, '"');
   const pickOne = (key, allowed, dflt) => {
     const v = between('"' + key + '":"', '"');
     return allowed.includes(v) ? v : dflt;
@@ -109,6 +110,8 @@ Flow for a single concept:
 {{TONE}} {{SUBJECT}} {{INTERESTS}}
 
 Keep every message short and age-appropriate — one thing at a time, no lectures.
+
+Formatting inside "message": if you lead with an explanation, a reflection, or a reaction before asking your question, put the question itself in its own paragraph - separate it from what came before with a blank line, so it stands out rather than blending into the lead-in. If you're listing more than one distinct point, use short bullet lines starting with "- ". A bold micro-heading (**like this**) can introduce a list when it genuinely helps, but most messages need no heading at all. These are formatting tools for clarity, not requirements - keep messages short regardless.
 
 VARY your question format. Don't make every question the same type — mix these:
 - true/false: set "options" to exactly ["True","False"]
