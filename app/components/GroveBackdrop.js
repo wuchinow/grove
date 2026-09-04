@@ -3,10 +3,14 @@
 // low-detail: it is a setting for the trees, never competition for them.
 export default function GroveBackdrop() {
   const W = 430, H = 300, groundTop = 208;
+  // Trunks run past the horizon so the grass band, which rises and falls across
+  // the width, always overlaps them. Ending them exactly at groundTop left a
+  // sliver of sky wherever the grass dipped below it.
+  const foot = groundTop + 26;
   const trunk = (x, wB, wT, fill, op, lit) => (
     <g opacity={op}>
-      <path d={`M${x - wB / 2} ${groundTop} L${x - wT / 2} 0 L${x + wT / 2} 0 L${x + wB / 2} ${groundTop} Z`} fill={fill} />
-      <path d={`M${x - wB / 2} ${groundTop} L${x - wT / 2} 0 L${x - wT / 2 + wT * 0.32} 0 L${x - wB / 2 + wB * 0.32} ${groundTop} Z`} fill={lit} opacity="0.45" />
+      <path d={`M${x - wB / 2} ${foot} L${x - wT / 2} 0 L${x + wT / 2} 0 L${x + wB / 2} ${foot} Z`} fill={fill} />
+      <path d={`M${x - wB / 2} ${foot} L${x - wT / 2} 0 L${x - wT / 2 + wT * 0.32} 0 L${x - wB / 2 + wB * 0.32} ${foot} Z`} fill={lit} opacity="0.45" />
     </g>
   );
   return (
@@ -30,7 +34,7 @@ export default function GroveBackdrop() {
         </linearGradient>
       </defs>
 
-      <rect x="0" y="0" width={W} height={groundTop + 14} fill="url(#gvSky)" />
+      <rect x="0" y="0" width={W} height={groundTop + 26} fill="url(#gvSky)" />
 
       {/* distant trunks, hazy */}
       {trunk(150, 22, 12, "#6E4E32", 0.34, "#A47E52")}

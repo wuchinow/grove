@@ -114,6 +114,14 @@ export const EXTRACT_SYSTEM = `You look at a photo of a student's schoolwork (no
 export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
 
+export const TOPIC_SYSTEM = `You take a topic a student wants to study and break it into the handful of concepts worth learning first. The topic may be a school subject, a chapter, a single idea, or something they are simply curious about.`;
+export const TOPIC_PROMPT = (topic, grade) => `The student wants to study: "${topic}".${grade ? ` They are at this level: ${grade}.` : ""}
+
+Break it into the 4-8 concepts most worth learning, ordered so earlier ones build toward later ones. Pitch the scope at their level: a broad topic should be narrowed to what actually matters first, not summarised shallowly.
+
+Respond with ONLY JSON, no markdown:
+{"subject":"<the topic, tidied up>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
+
 export const SAMPLE = {
   subject: "Biology - Photosynthesis",
   concepts: [
