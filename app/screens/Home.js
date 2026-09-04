@@ -203,9 +203,11 @@ export default function Home({ g }) {
         const c = concepts.find((x) => x.id === selected);
         if (!c) return null;
         return (
-          <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(45,28,16,.42)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
-            <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 460, background: C.card, borderRadius: "24px 24px 0 0", padding: "10px 22px 26px", boxShadow: "0 -10px 40px rgba(40,24,12,.25)" }}>
-              <div style={{ width: 40, height: 4, background: C.line, borderRadius: 999, margin: "0 auto 14px" }} />
+          <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(45,28,16,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 20 }}>
+            <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 420, maxHeight: "88vh", overflowY: "auto", background: C.card, borderRadius: 20, padding: "20px 22px 24px", boxShadow: "0 24px 56px rgba(40,24,12,.32)" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
+                <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "transparent", color: C.sub, cursor: "pointer", padding: 4, fontSize: 18, lineHeight: 1 }}>&times;</button>
+              </div>
               <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                 <div style={{ background: C.bg, borderRadius: 16, padding: 4 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>
                 <div style={{ flex: 1 }}>
