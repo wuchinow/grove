@@ -22,6 +22,8 @@ export const FONTS = `
 @keyframes pop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.06)} 100%{transform:scale(1);opacity:1} }
 @keyframes grow { 0%{transform:scale(.4) translateY(14px);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1) translateY(0);opacity:1} }
 @keyframes sway { 0%,100%{transform:rotate(-1deg)} 50%{transform:rotate(1deg)} }
+@keyframes dotPulse { 0%,80%,100%{opacity:.3;transform:scale(.85)} 40%{opacity:1;transform:scale(1)} }
+.dotPulse{display:inline-block;width:5px;height:5px;border-radius:999px;background:currentColor;animation:dotPulse 1.1s ease-in-out infinite}
 .fadeUp{animation:fadeUp .32s ease both}
 .pop{animation:pop .35s ease both}
 .grew{animation:grow .7s cubic-bezier(.22,1,.36,1) both}
@@ -39,6 +41,6 @@ export const FONTS = `
 }
 @media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }
 @media (prefers-reduced-motion: reduce){
-  .fadeUp,.pop,.grew{animation:none}
+  .fadeUp,.pop,.grew,.dotPulse{animation:none}
 }
 `;

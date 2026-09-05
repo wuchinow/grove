@@ -39,6 +39,15 @@ function renderMessage(text) {
   });
 }
 
+// Short label for the busy indicator, varied a little so it doesn't feel
+// like a frozen spinner. Only two signals available at this point: whether
+// the student has answered anything yet, and which concept is active.
+function busyLabel(chat, active) {
+  const answered = chat.some((m) => m.who === "student");
+  if (!answered) return active ? `Thinking about ${active.name}…` : "Thinking…";
+  return "Reading your answer…";
+}
+
 export default function Tutor({ g }) {
   const { active, activeId, busy, chat, failed, input, leaveSession, nextConcept, phase, queue, scrollRef, send, sessionPos, sessionTotal, setInput, startConcept } = g;
     const done = phase === "done";
@@ -99,7 +108,14 @@ export default function Tutor({ g }) {
             {busy && (
               <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "center" }}>
                 <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center" }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
-                <div style={{ background: C.card, padding: "13px 16px", borderRadius: 16, boxShadow: "0 3px 10px rgba(58,42,32,.06)", color: C.sub, fontSize: 20, letterSpacing: 2 }}>···</div>
+                <div style={{ background: C.card, padding: "13px 16px", borderRadius: 16, boxShadow: "0 3px 10px rgba(58,42,32,.06)", color: C.sub, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+                  <span>{busyLabel(chat, active)}</span>
+                  <span style={{ display: "inline-flex", gap: 3 }}>
+                    <span className="dotPulse" style={{ animationDelay: "0s" }} />
+                    <span className="dotPulse" style={{ animationDelay: "0.15s" }} />
+                    <span className="dotPulse" style={{ animationDelay: "0.3s" }} />
+                  </span>
+                </div>
               </div>
             )}
           </div>
