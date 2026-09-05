@@ -44,8 +44,8 @@ function renderMessage(text) {
 // the student has answered anything yet, and which concept is active.
 function busyLabel(chat, active) {
   const answered = chat.some((m) => m.who === "student");
-  if (!answered) return active ? `Thinking about ${active.name}…` : "Thinking…";
-  return "Reading your answer…";
+  if (!answered) return active ? `Thinking about ${active.name}` : "Thinking";
+  return "Reading your answer";
 }
 
 export default function Tutor({ g }) {
