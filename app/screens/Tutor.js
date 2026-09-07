@@ -108,7 +108,7 @@ export default function Tutor({ g }) {
             {busy && (
               <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "center" }}>
                 <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center" }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
-                <div style={{ background: C.card, padding: "13px 16px", borderRadius: 16, boxShadow: "0 3px 10px rgba(58,42,32,.06)", color: C.sub, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+                <div style={{ background: C.card, padding: "13px 16px", borderRadius: 16, boxShadow: "0 3px 10px rgba(58,42,32,.06)", color: C.sub, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 7 }}>
                   <span>{busyLabel(chat, active)}</span>
                   <span style={{ display: "inline-flex", gap: 3 }}>
                     <span className="dotPulse" style={{ animationDelay: "0s" }} />
