@@ -48,25 +48,43 @@ function busyLabel(chat, active) {
   return "Reading your answer";
 }
 
-// One mark per question actually asked, derived straight from chat rather
-// than tracked separately - a "question" or "check" phase message is a new
-// thing being asked; "hint" and "explain" continue the same one, so they
-// don't add a mark. Shape (not color) carries the question type, since
-// showing right/wrong per mark would turn a study tool into a scoreboard.
-function questionMarks(chat) {
-  return chat
-    .filter((m) => m.who === "tutor" && (m.phase === "question" || m.phase === "check"))
-    .map((m) => {
-      const n = Array.isArray(m.options) ? m.options.length : 0;
-      if (n === 2) return "tf";
-      if (n >= 3) return "mc";
-      return "open";
-    });
+// A real progress bar for a session whose length isn't known up front. The
+// pattern (and the "always move forward, never look broken" rule) is the
+// same one adaptive tests use: show completed, current, and an *estimated*
+// stretch ahead, and let the estimate extend rather than cap out if the
+// session runs long. SOFT_TARGET mirrors the "roughly 3 to 5" the tutor
+// prompt is actually instructed to aim for, so the bar and the model's real
+// behavior are describing the same number instead of two different guesses.
+const SOFT_TARGET = 4;
+// "question" or "check" phase means something new was asked; "hint" and
+// "explain" continue that same question, so they don't advance the bar.
+function askedCount(chat) {
+  return chat.filter((m) => m.who === "tutor" && (m.phase === "question" || m.phase === "check")).length;
 }
-function QuestionMark({ type }) {
-  if (type === "tf") return <span style={{ width: 6, height: 6, borderRadius: 999, background: C.primary, flexShrink: 0 }} />;
-  if (type === "mc") return <span style={{ width: 6, height: 6, background: C.primary, transform: "rotate(45deg)", flexShrink: 0 }} />;
-  return <span style={{ width: 2, height: 7, borderRadius: 999, background: C.primary, transform: "rotate(18deg)", flexShrink: 0 }} />;
+function progressLabel(asked, done) {
+  if (done) return `Question ${asked}`;
+  if (asked === 0) return "Getting started";
+  return asked <= SOFT_TARGET ? `Question ${asked} of about ${SOFT_TARGET}` : `Question ${asked}`;
+}
+function ProgressBar({ chat, phase }) {
+  const asked = askedCount(chat);
+  const done = phase === "done";
+  // While still in progress, show placeholder segments out to the estimate,
+  // so there's a visible "here's roughly what's ahead" the same way the old
+  // bar showed upcoming phases. Once done, only the real count remains -
+  // trailing placeholders after a session that wrapped up early would read
+  // as unfinished, which would be wrong.
+  const total = done ? asked : Math.max(SOFT_TARGET, asked);
+  return (
+    <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, flexShrink: 0 }}>{progressLabel(asked, done)}</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} style={{ width: 18, height: 5, borderRadius: 999, background: i < asked ? C.primary : C.line, flexShrink: 0 }} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function Tutor({ g }) {
@@ -83,7 +101,6 @@ export default function Tutor({ g }) {
               <button onClick={leaveSession} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>← Back to my grove</button>
               <div style={{ color: C.sub, fontSize: 13, fontWeight: 700, textAlign: "right" }}>
                 <div>Tree {sessionPos.current + 1} of {sessionTotal.current}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.stone }}>about 3 to 5 questions</div>
               </div>
             </div>
             <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
@@ -95,9 +112,7 @@ export default function Tutor({ g }) {
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 5, minHeight: 8 }}>
-              {questionMarks(chat).map((type, i) => <QuestionMark key={i} type={type} />)}
-            </div>
+            <ProgressBar chat={chat} phase={phase} />
           </div>
 
           <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
