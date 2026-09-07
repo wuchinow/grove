@@ -298,7 +298,7 @@ export function useGrove() {
       const text = await callAPI(seed, tutorSystem({ ...(profile || {}), insights }));
       const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
       setApiMsgs([...seed, { role: "assistant", content: text }]);
-      setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], visual: j.visual || null }]);
+      setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], correctOption: j.correctOption || "", visual: j.visual || null }]);
       setPhase(j.phase || "question");
     } catch {
       setChat([{ who: "tutor", text: "I couldn't reach the tutor just now. Tap Try again.", phase: "question" }]);
@@ -322,13 +322,28 @@ export function useGrove() {
     setInput("");
     const nextChat = [...chat, { who: "student", text: val }];
     setChat(nextChat);
-    const msgs = [...apiMsgs, { role: "user", content: val }];
+    // If the student picked one of the last question's own listed options, we
+    // already know objectively whether that's right - the tutor declared the
+    // answer key when it wrote the question. Check it here instead of asking
+    // the model to re-derive it from scratch, and tell the model the verdict
+    // rather than leaving it to reason its way back to the same fact.
+    const lastTutor = [...chat].reverse().find((m) => m.who === "tutor");
+    const wasOption = lastTutor && Array.isArray(lastTutor.options) && lastTutor.options.includes(val);
+    const groundTruth = wasOption ? (val === lastTutor.correctOption ? "solid" : "struggling") : null;
+    const apiContent = groundTruth
+      ? `${val}\n\n(Answer key says this is ${groundTruth === "solid" ? "correct" : "incorrect"} - grade accordingly, this isn't something to re-check.)`
+      : val;
+    const msgs = [...apiMsgs, { role: "user", content: apiContent }];
     setApiMsgs(msgs); setBusy(true);
     try {
       const text = await callAPI(msgs, tutorSystem({ ...(profile || {}), insights }));
       const j = parseJSON(text) || { message: text, phase, understanding: "unknown" };
+      // Trust the answer key over the model's own re-judgment if the two ever
+      // disagree - the mastery score should never dip on a genuinely correct
+      // answer just because the model second-guessed its own stated key.
+      if (groundTruth && j.understanding !== groundTruth) j.understanding = groundTruth;
       setApiMsgs([...msgs, { role: "assistant", content: text }]);
-      setChat([...nextChat, { who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], visual: j.visual || null }]);
+      setChat([...nextChat, { who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], correctOption: j.correctOption || "", visual: j.visual || null }]);
       setPhase(j.phase || phase);
       updateMastery(activeId, j.understanding);
       if (j.phase === "done") {

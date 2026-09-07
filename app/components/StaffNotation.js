@@ -31,7 +31,7 @@ function ledgerPositions(p) {
 
 export default function StaffNotation({ clef = "treble", notes = [], width = 220 }) {
   const step = 7;              // px per staff step
-  const padX = 26;             // room for the clef mark
+  const padX = 30;             // room for the clef mark
   const noteGap = 34;          // horizontal spacing between notes
   const positions = notes.map((n) => position(n.letter, n.octave, clef));
   const minP = Math.min(0, ...positions);
@@ -40,18 +40,39 @@ export default function StaffNotation({ clef = "treble", notes = [], width = 220
   const bottomPad = (0 - minP) * step + 22;
   const svgH = 8 * step + topPad + bottomPad;
   const y = (p) => svgH - bottomPad - p * step;
-  const svgW = Math.max(width, padX * 2 + notes.length * noteGap);
+  const svgW = Math.max(width, padX * 2 + 10 + notes.length * noteGap);
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} width={svgW} height={svgH} style={{ display: "block", overflow: "visible" }}>
       {[0, 2, 4, 6, 8].map((p) => (
         <line key={p} x1={padX - 12} x2={svgW - 10} y1={y(p)} y2={y(p)} stroke={C.ink} strokeWidth="1.1" opacity="0.55" />
       ))}
-      <text x={padX - 22} y={y(clef === "bass" ? 2 : 4) + 6} fontSize="20" fontFamily="serif" fill={C.ink} opacity="0.7">
-        {clef === "bass" ? "\uD834\uDD22" : "\uD834\uDD1E"}
-      </text>
+      {clef === "bass" ? (
+        // A thick hook opening left, its bulge sitting on the F3 line, plus the
+        // two dots that straddle that same line - sized in step units so it
+        // scales with the staff instead of a fixed font size.
+        <>
+          <path
+            d={`M ${padX - 4} ${y(9.5)} C ${padX - step * 1.3} ${y(8.4)}, ${padX - step * 1.3} ${y(6.1)}, ${padX - 5} ${y(5)}`}
+            fill="none" stroke={C.ink} strokeWidth={step * 0.42} strokeLinecap="round" opacity="0.75"
+          />
+          <circle cx={padX + 6} cy={y(7)} r={step * 0.22} fill={C.ink} opacity="0.75" />
+          <circle cx={padX + 6} cy={y(5)} r={step * 0.22} fill={C.ink} opacity="0.75" />
+        </>
+      ) : (
+        // A loop centered high on the staff with a stem sweeping down through
+        // the G4 line and curling at the bottom - a stylized treble clef, not
+        // calligraphy, but properly proportioned to the staff it sits on.
+        <path
+          d={`M ${padX + 2} ${y(10)}
+              C ${padX - step * 1.6} ${y(9.3)}, ${padX - step * 1.6} ${y(7.2)}, ${padX + 1} ${y(6.8)}
+              C ${padX + step * 1.9} ${y(6.4)}, ${padX + step * 1.7} ${y(3.6)}, ${padX - 1} ${y(2)}
+              C ${padX - step * 1.4} ${y(0.6)}, ${padX - step * 1.4} ${y(-1.6)}, ${padX + 1.5} ${y(-2.2)}`}
+          fill="none" stroke={C.ink} strokeWidth={step * 0.38} strokeLinecap="round" strokeLinejoin="round" opacity="0.75"
+        />
+      )}
       {notes.map((n, i) => {
-        const cx = padX + 14 + i * noteGap;
+        const cx = padX + 20 + i * noteGap;
         const p = positions[i];
         const cy = y(p);
         const acc = n.accidental === "sharp" ? "\u266F" : n.accidental === "flat" ? "\u266D" : "";
