@@ -6,6 +6,7 @@ import { statusOf, growthLabel, canopyColor } from "../lib/ai";
 import Tree from "../components/Tree";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
+import StaffNotation from "../components/StaffNotation";
 
 // Turns a tutor message's lightweight formatting into React nodes: blank-line
 // paragraphs, "- " bullets, and **bold**. No markdown library - the tutor
@@ -123,6 +124,11 @@ export default function Tutor({ g }) {
                   <div style={{ background: C.card, padding: "12px 14px", borderRadius: "4px 16px 16px 16px", boxShadow: "0 3px 10px rgba(58,42,32,.06)", fontSize: 15, lineHeight: 1.45 }}>
                     {m.phase && m.phase !== "question" && m.phase !== "done" && (
                       <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.primary, marginBottom: 4 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
+                    )}
+                    {m.visual && m.visual.type === "staff" && (
+                      <div style={{ marginBottom: 8 }}>
+                        <StaffNotation clef={m.visual.clef} notes={m.visual.notes || []} />
+                      </div>
                     )}
                     {renderMessage(m.text)}
                   </div>

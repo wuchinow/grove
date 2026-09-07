@@ -22,7 +22,7 @@ export async function GET(request) {
   if (!student) return Response.json({ error: "Missing student id." }, { status: 400 });
 
   const [sRes, gRes] = await Promise.all([
-    fetch(`${c.base}/students?student_id=eq.${encodeURIComponent(student)}&select=profile`, { headers: c.headers, cache: "no-store" }),
+    fetch(`${c.base}/students?student_id=eq.${encodeURIComponent(student)}&select=profile,insights`, { headers: c.headers, cache: "no-store" }),
     fetch(`${c.base}/groves?student_id=eq.${encodeURIComponent(student)}&select=id,name,concepts&order=updated_at.desc`, { headers: c.headers, cache: "no-store" }),
   ]);
   if (!sRes.ok || !gRes.ok) return Response.json({ error: "Database read failed." }, { status: 502 });
@@ -32,7 +32,7 @@ export async function GET(request) {
     const concepts = Array.isArray(g.concepts) ? g.concepts : [];
     return { id: g.id, name: g.name, treeCount: concepts.length, flourishing: concepts.filter((c) => c.mastery >= 85).length };
   });
-  return Response.json({ student, profile: (sRows[0] && sRows[0].profile) || {}, groves });
+  return Response.json({ student, profile: (sRows[0] && sRows[0].profile) || {}, insights: (sRows[0] && sRows[0].insights) || [], groves });
 }
 
 export async function PUT(request) {
@@ -42,11 +42,26 @@ export async function PUT(request) {
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON body." }, { status: 400 }); }
   const student = cleanId(body.student);
   if (!student) return Response.json({ error: "Missing student id." }, { status: 400 });
-  const profile = body.profile && typeof body.profile === "object" ? body.profile : {};
+  const hasProfile = body.profile && typeof body.profile === "object";
+  const hasInsight = body.insight && typeof body.insight === "object" && body.insight.note;
+  if (!hasProfile && !hasInsight) return Response.json({ error: "Need profile or insight to write." }, { status: 400 });
+
+  // Read the current row first. Either kind of write, a profile update or an
+  // insight append, must never wipe out whichever field the request didn't
+  // touch - this used to always send profile:{} on an insight-only write,
+  // which would have overwritten grade and interests every time a session
+  // completed.
+  const cur = await fetch(`${c.base}/students?student_id=eq.${encodeURIComponent(student)}&select=profile,insights`, { headers: c.headers, cache: "no-store" });
+  const rows = cur.ok ? await cur.json() : [];
+  const row = rows[0] || {};
+  const profile = hasProfile ? body.profile : (row.profile || {});
+  const insights = Array.isArray(row.insights) ? row.insights : [];
+  if (hasInsight) insights.push(body.insight);
+
   const res = await fetch(`${c.base}/students`, {
     method: "POST",
     headers: { ...c.headers, Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify({ student_id: student, profile, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ student_id: student, profile, insights: insights.slice(-30), updated_at: new Date().toISOString() }),
   });
   if (!res.ok) return Response.json({ error: "Database write failed." }, { status: 502 });
   return Response.json({ ok: true });

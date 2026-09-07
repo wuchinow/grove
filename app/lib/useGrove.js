@@ -31,6 +31,7 @@ export function useGrove() {
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
   const [profile, setProfile] = useState(null);   // { grade } once set up
+  const [insights, setInsights] = useState([]);   // short notes from past sessions, for tutor calibration
   const [setupGrade, setSetupGrade] = useState("");
   const [setupInterests, setSetupInterests] = useState(["", "", ""]);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -84,6 +85,7 @@ export function useGrove() {
         if (j) {
           setProfile(j.profile && j.profile.grade ? j.profile : null);
           setGroves(Array.isArray(j.groves) ? j.groves : []);
+          setInsights(Array.isArray(j.insights) ? j.insights : []);
         }
       })
       .catch(() => {})
@@ -293,10 +295,10 @@ export function useGrove() {
     setActiveId(id); setPhase("question"); setChat([]); setBusy(true); setFailed(false);
     const seed = [{ role: "user", content: tutorSeed(c) }];
     try {
-      const text = await callAPI(seed, tutorSystem(profile));
+      const text = await callAPI(seed, tutorSystem({ ...(profile || {}), insights }));
       const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
       setApiMsgs([...seed, { role: "assistant", content: text }]);
-      setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [] }]);
+      setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], visual: j.visual || null }]);
       setPhase(j.phase || "question");
     } catch {
       setChat([{ who: "tutor", text: "I couldn't reach the tutor just now. Tap Try again.", phase: "question" }]);
@@ -323,15 +325,23 @@ export function useGrove() {
     const msgs = [...apiMsgs, { role: "user", content: val }];
     setApiMsgs(msgs); setBusy(true);
     try {
-      const text = await callAPI(msgs, tutorSystem(profile));
+      const text = await callAPI(msgs, tutorSystem({ ...(profile || {}), insights }));
       const j = parseJSON(text) || { message: text, phase, understanding: "unknown" };
       setApiMsgs([...msgs, { role: "assistant", content: text }]);
-      setChat([...nextChat, { who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [] }]);
+      setChat([...nextChat, { who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], visual: j.visual || null }]);
       setPhase(j.phase || phase);
       updateMastery(activeId, j.understanding);
       if (j.phase === "done") {
+        const doneConcept = concepts.find((c) => c.id === activeId);
         setConcepts((prev) => prev.map((c) => c.id === activeId ? { ...c, days: c.days + 1, reviews: c.reviews + 1 } : c));
         setGrewIds((g) => (g.includes(activeId) ? g : [...g, activeId]));
+        // A short, concrete note for next time - saved to the student record, not
+        // the grove, since it's about the learner rather than any one concept.
+        if (child && j.reflection) {
+          const entry = { concept: doneConcept ? doneConcept.name : "", note: j.reflection, at: new Date().toISOString() };
+          setInsights((prev) => [...prev, entry].slice(-20));
+          fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, insight: entry }) }).catch(() => {});
+        }
       }
     } catch {
       setChat([...nextChat, { who: "tutor", text: "I couldn't reach the tutor just now. Say that once more?", phase }]);
@@ -349,5 +359,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }
