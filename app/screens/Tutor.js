@@ -8,10 +8,36 @@ import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 import StaffNotation from "../components/StaffNotation";
 
+// The tutor is asked to bold its own question, but that's a prompt
+// instruction, not a guarantee - it's dropped it intermittently even after a
+// prompt rewrite, more often on a smaller model. Same fix as everywhere else
+// in this app: don't rely on the model remembering something reliably when
+// code can just guarantee it. Finds the last "?" and bolds back to the start
+// of that sentence, unless the model already bolded something itself.
+function autoboldQuestion(text) {
+  if (/\*\*[^*]*\?[^*]*\*\*/.test(text)) return text;
+  const qIndex = text.lastIndexOf("?");
+  if (qIndex === -1) return text;
+  let start = 0;
+  for (let i = qIndex - 1; i >= 0; i--) {
+    const ch = text[i];
+    if ((ch === "." || ch === "!" || ch === "?") && /\s/.test(text[i + 1] || "")) { start = i + 2; break; }
+    if (ch === "\n") { start = i + 1; break; }
+  }
+  const before = text.slice(0, start);
+  const sentence = text.slice(start, qIndex + 1);
+  const after = text.slice(qIndex + 1);
+  const leadWs = sentence.match(/^\s*/)[0];
+  const trimmed = sentence.trim();
+  if (!trimmed) return text;
+  return before + leadWs + "**" + trimmed + "**" + after;
+}
+
 // Turns a tutor message's lightweight formatting into React nodes: blank-line
 // paragraphs, "- " bullets, and **bold**. No markdown library - the tutor
 // prompt only ever needs these three, so a tiny parser keeps this dependency-free.
-function renderMessage(text) {
+function renderMessage(rawText) {
+  const text = autoboldQuestion(rawText);
   const bold = (s, key) => {
     const parts = s.split(/\*\*(.+?)\*\*/g);
     return parts.map((part, i) => (i % 2 === 1 ? <strong key={`${key}-${i}`}>{part}</strong> : part));

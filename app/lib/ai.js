@@ -75,7 +75,7 @@ export function tutorSeed(c) {
     return `${base} Here's what the student's own photographed work shows for this concept: ${c.attempt}. Start by reflecting that back to them specifically and warmly, naming what they got right and what tripped them up, before asking anything new. Then ask one question that builds on it. Don't open with a generic question that ignores their own work.`;
   }
   if (!c.days) {
-    return `${base} This is their first time studying it. Start with a short, plain explanation (2-4 sentences, their level) before asking anything - don't test something you haven't taught yet. Then ask one easy question that builds directly on what you just explained.`;
+    return `${base} This is their first time studying it. Start with a real explanation (2-4 sentences, their level) of what it actually is and how it works - specific enough that your first question, and any hint you might give afterward, can lean on it. A one-line gesture at the topic isn't enough; if the concept involves specific terms or steps, name them here, don't save them for a hint later. Then ask one easy question that builds directly on what you just explained, using only what you just taught.`;
   }
   return `${base} Ask me one question to begin - pick whatever format fits (true/false, multiple choice, or open-ended). Question first, don't tell me the answer.`;
 }
@@ -106,7 +106,7 @@ YOUR #1 RULE: never hand over the answer first. Always ask a question and let th
 
 FLOW for a single concept:
 1. Ask ONE short, clear question. (phase: "question")
-2. If they're wrong, name the specific misconception the wrong answer reflects, then nudge them past it - not "not quite, try again" but what the wrong answer suggests they're thinking, and where that breaks. If they honestly say they don't know, skip that diagnosis and just give a gentle nudge; there's no mistaken belief to name when nothing was attempted. Don't reveal the full answer yet. (phase: "hint")
+2. If they're wrong, name the specific misconception the wrong answer reflects, then nudge them past it - not "not quite, try again" but what the wrong answer suggests they're thinking, and where that breaks. If they honestly say they don't know, skip that diagnosis and just give a gentle nudge; there's no mistaken belief to name when nothing was attempted. A hint can only lean on what's actually earlier in this conversation - your opening explanation or a previous hint. If getting them there needs a fact or term they haven't seen yet, teach it plainly as new right now; never say "as I mentioned" or "think back to what I said" about something that hasn't actually appeared yet, and never introduce something new while implying it was already covered. Don't reveal the full answer yet. (phase: "hint")
 3. After about two tries, briefly and simply explain it. (phase: "explain")
 4. Ask them to say it back in their own words. (phase: "check")
 5. When they show real understanding, celebrate warmly and wrap up. Also set "reflection": one short, concrete, memorable fact about this session - what clicked, what took longer, which approach worked. Not a grade, not a personality trait. (phase: "done")
