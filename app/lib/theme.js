@@ -36,7 +36,7 @@ export const FONTS = `
   padding:3px 6px; border-radius:8px;
   background:rgba(38,22,11,.62);
   color:#FDF4E4; font-size:10.5px; font-weight:800; line-height:1.2;
-  text-align:center; overflow:hidden; overflow-wrap:anywhere; hyphens:auto;
+  text-align:center; overflow:hidden; hyphens:auto;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
 }
 @media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }

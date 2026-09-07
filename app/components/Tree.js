@@ -35,13 +35,13 @@ export default function Tree({ days, mastery, width = 76 }) {
   }
 
   // ---- proportions: a young stem thickens and lifts as it matures -----------
-  const trunkH = 14 + h * 15;                 // visible trunk below the canopy
+  const trunkH = 14 + h * 12;                 // visible trunk below the canopy
   const baseW = 5.5 + h * 1.15;               // trunk width at the ground
   const topW = baseW * 0.62;
   const top = groundY - trunkH;
 
   // canopy: taller and broader with age, fuller with mastery
-  const canopyH = 30 + h * 12 + (mastery / 100) * 12;
+  const canopyH = 30 + h * 9.5 + (mastery / 100) * 9.5;
   const canopyW = 26 + h * 4.2 + (mastery / 100) * 7;
   const layers = h <= 1 ? 3 : h <= 3 ? 4 : 5;
   const step = canopyH / (layers + 1.5);      // vertical rise per layer
