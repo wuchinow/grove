@@ -48,6 +48,27 @@ function busyLabel(chat, active) {
   return "Reading your answer";
 }
 
+// One mark per question actually asked, derived straight from chat rather
+// than tracked separately - a "question" or "check" phase message is a new
+// thing being asked; "hint" and "explain" continue the same one, so they
+// don't add a mark. Shape (not color) carries the question type, since
+// showing right/wrong per mark would turn a study tool into a scoreboard.
+function questionMarks(chat) {
+  return chat
+    .filter((m) => m.who === "tutor" && (m.phase === "question" || m.phase === "check"))
+    .map((m) => {
+      const n = Array.isArray(m.options) ? m.options.length : 0;
+      if (n === 2) return "tf";
+      if (n >= 3) return "mc";
+      return "open";
+    });
+}
+function QuestionMark({ type }) {
+  if (type === "tf") return <span style={{ width: 6, height: 6, borderRadius: 999, background: C.primary, flexShrink: 0 }} />;
+  if (type === "mc") return <span style={{ width: 6, height: 6, background: C.primary, transform: "rotate(45deg)", flexShrink: 0 }} />;
+  return <span style={{ width: 2, height: 7, borderRadius: 999, background: C.primary, transform: "rotate(18deg)", flexShrink: 0 }} />;
+}
+
 export default function Tutor({ g }) {
   const { active, activeId, busy, chat, failed, input, leaveSession, nextConcept, phase, queue, scrollRef, send, sessionPos, sessionTotal, setInput, startConcept } = g;
     const done = phase === "done";
@@ -74,18 +95,8 @@ export default function Tutor({ g }) {
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 10, display: "flex", gap: 4 }}>
-              {[["question", "Question"], ["hint", "Hint"], ["explain", "Explain"], ["check", "Say it back"], ["done", "Done"]].map(([k, label], i) => {
-                const order = ["question", "hint", "explain", "check", "done"];
-                const cur = order.indexOf(phase), me = order.indexOf(k);
-                const on = me <= cur;
-                return (
-                  <div key={k} style={{ flex: 1, textAlign: "center" }}>
-                    <div style={{ height: 4, borderRadius: 999, background: on ? C.primary : C.line }} />
-                    <div style={{ marginTop: 3, fontSize: 9.5, fontWeight: 800, letterSpacing: ".02em", color: me === cur ? C.primaryDeep : C.sub }}>{label}</div>
-                  </div>
-                );
-              })}
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 5, minHeight: 8 }}>
+              {questionMarks(chat).map((type, i) => <QuestionMark key={i} type={type} />)}
             </div>
           </div>
 

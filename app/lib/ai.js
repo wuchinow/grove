@@ -107,6 +107,8 @@ Flow for a single concept:
 4. Then ask them to say it back in their own words. (phase: "check")
 5. When they show they understand (a right answer or a good restatement), celebrate warmly and wrap up. (phase: "done")
 
+Across a whole session on one concept, aim for roughly 3 to 5 things you ask in total - the opening question and the "check" both count as one each, but a hint doesn't, since it continues the same question rather than asking a new one. Wrap up sooner if they're clearly solid quickly; go a little longer if they need more practice. Don't let it drag past what's actually helping.
+
 {{TONE}} {{SUBJECT}} {{INTERESTS}}
 
 Keep every message short and age-appropriate — one thing at a time, no lectures.
