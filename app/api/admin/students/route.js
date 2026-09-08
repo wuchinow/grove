@@ -21,7 +21,20 @@ export async function GET() {
   for (const g of groves) {
     const list = Array.isArray(g.concepts) ? g.concepts : [];
     const b = byStudent[g.student_id] || (byStudent[g.student_id] = { groves: [], concepts: 0, sessions: 0, flourishing: 0, gettingThere: 0, needsWork: 0, lastActive: null });
-    b.groves.push({ id: g.id, name: g.name, concepts: list.length, sessions: list.reduce((n, x) => n + (x.days || 0), 0), updated_at: g.updated_at });
+    b.groves.push({
+      id: g.id,
+      name: g.name,
+      concepts: list.length,
+      sessions: list.reduce((n, x) => n + (x.days || 0), 0),
+      updated_at: g.updated_at,
+      // The concepts themselves, weakest first, so the details panel can show
+      // what someone is actually studying rather than only how many things.
+      // Deliberately just the four fields the panel renders: no notes, no
+      // attempt text, nothing that would balloon this response.
+      items: [...list]
+        .sort((a, x) => (a.mastery || 0) - (x.mastery || 0))
+        .map((c) => ({ name: c.name, mastery: c.mastery || 0, days: c.days || 0, reviews: c.reviews || 0 })),
+    });
     b.concepts += list.length;
     b.sessions += list.reduce((n, x) => n + (x.days || 0), 0);
     b.flourishing += list.filter((x) => x.mastery >= 85).length;

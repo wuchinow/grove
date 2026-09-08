@@ -20,6 +20,10 @@ const ago = (iso) => {
   return `${Math.round(h / 24)} days ago`;
 };
 
+// Same three bands the student app uses, so a number reads the same here as it
+// does on a tree: pale under 40, mid green to 84, deep green at 85 and up.
+const bandColor = (m) => (m < 40 ? C.coral : m < 85 ? C.sage : C.sageDeep);
+
 function Card({ children, style }) {
   return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "16px 18px", boxShadow: "0 6px 18px rgba(58,42,32,.07)", ...style }}>{children}</div>;
 }
@@ -174,10 +178,24 @@ export default function Admin() {
                             <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>GROVES</div>
                             {s.groves.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
                             {s.groves.map((g) => (
-                              <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", fontSize: 13 }}>
-                                <Tree days={Math.min(5, g.sessions)} mastery={g.concepts ? 60 : 0} width={22} />
-                                <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
-                                <span style={{ color: C.sub }}>{g.concepts} concepts · {g.sessions} sessions · {ago(g.updated_at)}</span>
+                              <div key={g.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                                  <Tree days={Math.min(5, g.sessions)} mastery={g.concepts ? 60 : 0} width={22} />
+                                  <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
+                                  <span style={{ color: C.sub }}>{g.concepts} concepts · {g.sessions} sessions · {ago(g.updated_at)}</span>
+                                </div>
+                                {/* Weakest first: the ones worth looking at are at the top. */}
+                                {(g.items || []).length > 0 && (
+                                  <div style={{ marginTop: 5, marginLeft: 30, display: "flex", flexDirection: "column", gap: 3 }}>
+                                    {g.items.map((c, i) => (
+                                      <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
+                                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                                        <span style={{ color: C.stone, flexShrink: 0 }}>{c.days === 0 ? "never tended" : `${c.days} ${c.days === 1 ? "session" : "sessions"}`}</span>
+                                        <span style={{ color: bandColor(c.mastery), fontWeight: 800, flexShrink: 0, minWidth: 26, textAlign: "right" }}>{c.mastery}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                             {s.interests.length > 0 && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 8 }}>Into: {s.interests.join(", ")}</div>}
