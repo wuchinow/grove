@@ -16,7 +16,12 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0 }}>{children}</body>
+      <body style={{ margin: 0 }}>
+        {children}
+        {/* Vercel Web Analytics, page views only, no cookies. Enabled per project
+            in the Vercel dashboard; this tag is a no-op until it is. */}
+        <script defer src="/_vercel/insights/script.js" />
+      </body>
     </html>
   );
 }

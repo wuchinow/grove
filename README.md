@@ -8,64 +8,61 @@ practiced, greener/fuller with higher mastery.
 Adapted from Phil's original single-file prototype (`grove-demo.jsx`) into a real
 Next.js app that can run outside the Claude sandbox.
 
-## Required setup: three environment variables
+## Required setup: four environment variables
 
-The original prototype called the Anthropic API directly from the browser with no
-key, relying on the Claude sandbox to inject one. That only works inside Claude's
-sandbox. This version calls a server route instead (`app/api/anthropic/route.js`),
-which needs a real API key set as an environment variable.
-
-Saved groves live in Supabase (project `grove`, ref `xpawazygyvupevgjusyv`), reached
-through a second server route (`app/api/grove/route.js`) with the service role key.
-
-In the Vercel dashboard for this project, Settings -> Environment Variables, add:
+The browser never sees any of these; only the server routes do. In the Vercel
+dashboard for this project, Settings -> Environment Variables, add:
 
 | Key | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | your Anthropic API key (console.anthropic.com) |
 | `SUPABASE_URL` | `https://xpawazygyvupevgjusyv.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase -> project grove -> Settings -> API -> service_role key |
+| `SUPABASE_ANON_KEY` | Supabase -> project grove -> Settings -> API -> anon / public key |
 
 Tick Production on each, then Deployments -> Redeploy. Env var changes only take
-effect on the next deployment. The browser never sees any of these; only the
-server routes do.
+effect on the next deployment.
 
-## Per-child groves (no login yet)
+## Accounts
 
-Open the app with `?child=<name>` (for example `/?child=asher`) and that grove is
-loaded from and saved to Supabase under that name. Without `?child=`, the app runs
-as a session-only demo. Names are lowercased and stripped to letters, digits, `-`
-and `_`. Anyone with a link can open that grove, so treat links as unlisted URLs:
-fine for family testing, not for strangers. Real parent-owned accounts with child
-profiles are the next phase.
+Everyone signs in with a username and password. The username is the
+`student_id`; the email is only for account recovery. Supabase Auth holds the
+credentials (Email provider on, confirmation off for the beta), reached over its
+REST API from `app/lib/auth.js` and the routes under `app/api/auth/`. The session
+is an httpOnly cookie. Every data route resolves who is asking from that cookie
+and never trusts an id sent by the browser.
 
-Database: one table, `groves(child_id text primary key, concepts jsonb, updated_at)`,
-with row level security on so only the service role can touch it.
+- **Guest** (no account): the full app, held in memory, gone on refresh. Signing
+  up mid-session saves whatever the guest built to the new account.
+- **Beta links** (`?student=NAME`): still work for a row that no account has
+  claimed. Signing up with that same username claims it, with its groves and
+  history, and the link stops working. The admin dashboard has an "attach"
+  control for anyone who signed up under a different name.
+- **Admin**: `students.role = 'admin'` shows a Dashboard entry in the account
+  menu and unlocks `/admin` and `/api/admin/*`. Everyone else gets a 404 there.
+
+Database: `students` (identity, grade, interests, insights) and `groves` (one
+row per grove, several per student). Row level security is on with no policies,
+so only the service role can read or write. Migrations live in `supabase/migrations/`.
 
 ## How it works
 
-- `app/page.js` is the whole kid-facing app (client component). Same UI, logic,
-  and visuals as the original prototype, just adapted to fetch from `/api/anthropic`
-  instead of calling Anthropic directly.
-- `app/api/anthropic/route.js` is the server proxy. It reads `ANTHROPIC_API_KEY`
-  from the environment, forwards the request to Anthropic's Messages API, and
-  returns the response as-is.
-- Two AI calls, both through the proxy:
-  - **Concept extraction** (vision): photo in, returns
-    `{ subject, concepts: [{ name, note }] }`.
-  - **Tutor turn** (chat): the whole conversation is resent each turn (the API is
-    stateless). Returns `{ message, phase, understanding, options }`, where `phase`
-    drives the question/hint/explain/check/done flow and `understanding` drives the
-    mastery score.
+- `app/page.js` is a router; `app/lib/useGrove.js` owns all client state; one
+  file per screen under `app/screens/`.
+- `app/api/anthropic/route.js` is the server proxy for the Anthropic key. Model
+  is `claude-haiku-4-5-20251001`, set in `app/lib/ai.js`.
+- Three AI calls, all through the proxy: concept extraction from a photo,
+  typed-topic breakdown, and the tutor turn. The whole conversation is resent
+  each turn. The tutor returns `{ message, phase, understanding, options,
+  correctOption, visual, reflection }`.
 
-## Current limitations (expected for this phase)
+## Current limitations
 
-- **No accounts.** Groves are keyed by the name in the link, not by a login.
+- **No password reset yet.** Ask David.
 - **No spaced repetition yet.** "Next review" labels are placeholders.
-- **No COPPA-specific handling yet.** Fine for testing with your own kid under your
-  own roof, not for distribution beyond that.
-
-These map to the next build phases (persistence, auth) rather than being bugs.
+- **No per-turn logging yet.** Only end state (mastery, insights) is stored.
+- **No COPPA-specific handling yet.** Fine for family and friends, not for
+  distribution beyond that.
 
 ## Local development
 
@@ -74,7 +71,7 @@ npm install
 npm run dev
 ```
 
-Add a `.env.local` file with the same three variables to test locally.
+Add a `.env.local` file with the same four variables to test locally.
 
 ## Deploying
 

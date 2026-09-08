@@ -10,12 +10,11 @@ import { callAPI, parseJSON, fileToImage, tutorSystem, tutorSeed, EXTRACT_SYSTEM
 // progress), and a non-saving preview of the sample grove. Screens receive the
 // whole thing as `g` and are otherwise presentational.
 //
-// Two persistence modes share one shape. A named student (?student=name in
-// the URL) has groves saved to Supabase via /api/student and /api/grove. An
-// anonymous visitor (no name) gets the identical multi-grove experience held
-// entirely in memory in `localGroves` below: nothing is ever sent to the
-// server, and it's gone on refresh, matching the existing "lasts for this
-// session" framing. Every function below branches on `child` internally, so
+// Two persistence modes share one shape. A signed-in student (session cookie,
+// see the boot effect) has groves saved to Supabase via /api/student and
+// /api/grove. A guest gets the identical multi-grove experience held entirely
+// in memory in `localGroves` below: nothing is sent to the server, and it's
+// gone on refresh. Every function below branches on `child` internally, so
 // the screens never need to know which mode they're in.
 export function useGrove() {
   const [screen, setScreen] = useState("home");
@@ -27,7 +26,7 @@ export function useGrove() {
   const [selected, setSelected] = useState(null);
   const [grewIds, setGrewIds] = useState([]);
   const [failed, setFailed] = useState(false);
-  const [child, setChild] = useState(null);      // student id from the URL; null = session-only demo
+  const [child, setChild] = useState(null);      // signed-in (or legacy-link) student id; null = guest
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
   const [profile, setProfile] = useState(null);   // { grade } once set up
@@ -69,28 +68,106 @@ export function useGrove() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chat, busy]);
 
-  // Load this student once, if the URL names one (?student= or legacy ?child=).
-  // An anonymous visitor (no name) still gets grovesLoaded=true immediately,
-  // starting from an empty local list, so the switcher and empty-state logic
-  // behave identically in both modes.
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const name = q.get("student") || q.get("child");
-    const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
-    if (!id) { setLoaded(true); setGrovesLoaded(true); return; }
+  // Who is this? Three answers, in order of preference:
+  //   account - a session cookie names a signed-in student (the normal case)
+  //   legacy  - no session, but ?student=NAME names a beta row that no account
+  //             has claimed yet; those links keep working until the person
+  //             signs up, then stop
+  //   guest   - neither; the in-memory demo, with the welcome card offered once
+  // `child` stays the student id in the first two cases and null for a guest,
+  // so nothing downstream changes.
+  const [auth, setAuth] = useState({ status: "loading", username: "", role: "student" });
+  const [authCard, setAuthCard] = useState(null);     // null | "welcome" | "signin" | "signup"
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+
+  function applyPerson(id, j, status) {
     setChild(id);
-    fetch(`/api/student?student=${encodeURIComponent(id)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j) {
-          setProfile(j.profile && j.profile.grade ? j.profile : null);
-          setGroves(Array.isArray(j.groves) ? j.groves : []);
-          setInsights(Array.isArray(j.insights) ? j.insights : []);
+    setAuth({ status, username: (j.student && j.student.username) || id, role: (j.student && j.student.role) || "student" });
+    setProfile(j.profile && j.profile.grade ? j.profile : null);
+    setGroves(Array.isArray(j.groves) ? j.groves : []);
+    setInsights(Array.isArray(j.insights) ? j.insights : []);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      try {
+        const r = await fetch("/api/auth/session", { cache: "no-store" });
+        const j = r.ok ? await r.json() : null;
+        if (cancelled) return;
+        if (j && j.student) { applyPerson(j.student.student_id, j, "account"); return; }
+        const q = new URLSearchParams(window.location.search);
+        const name = q.get("student") || q.get("child");
+        const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
+        if (id) {
+          const lr = await fetch(`/api/student?student=${encodeURIComponent(id)}`, { cache: "no-store" });
+          const lj = lr.ok ? await lr.json() : null;
+          if (cancelled) return;
+          if (lj) { applyPerson(id, lj, "legacy"); return; }
         }
-      })
-      .catch(() => {})
-      .finally(() => { setLoaded(true); setGrovesLoaded(true); });
-  }, []);
+        setAuth({ status: "guest", username: "", role: "student" });
+        setAuthCard("welcome");
+      } catch {
+        if (!cancelled) setAuth({ status: "guest", username: "", role: "student" });
+      } finally {
+        if (!cancelled) { setLoaded(true); setGrovesLoaded(true); }
+      }
+    }
+    boot();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After a sign-in or sign-up: adopt the session, and if this was a guest
+  // with groves in memory, save them under the new account so nothing they
+  // just did is lost. Then clear any ?student= from the address bar.
+  async function adoptSession() {
+    const carry = Object.entries(localGroves.current).map(([id, concepts]) => {
+      const entry = groves.find((g) => g.id === id);
+      return { name: entry ? entry.name : "My grove", concepts };
+    }).filter((g) => g.concepts && g.concepts.length);
+    for (const g of carry) {
+      try { await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: g.name, concepts: g.concepts }) }); } catch {}
+    }
+    localGroves.current = {};
+    const r = await fetch("/api/auth/session", { cache: "no-store" });
+    const j = r.ok ? await r.json() : null;
+    if (!j || !j.student) throw new Error("no session");
+    setActiveGroveId(null); setActiveGroveName(""); setConcepts([]); setGrewIds([]); setSelected(null);
+    applyPerson(j.student.student_id, j, "account");
+    setAuthCard(null); setAuthError("");
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname);
+  }
+
+  async function signIn(identifier, password) {
+    setAuthBusy(true); setAuthError("");
+    try {
+      const r = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setAuthError(j.error || "Couldn't sign in."); return false; }
+      await adoptSession();
+      return true;
+    } catch { setAuthError("Couldn't reach the server. Try again."); return false; }
+    finally { setAuthBusy(false); }
+  }
+
+  async function signUp(username, email, password) {
+    setAuthBusy(true); setAuthError("");
+    try {
+      const r = await fetch("/api/auth/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, email, password }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setAuthError(j.error || "Couldn't create the account."); return false; }
+      if (j.needsConfirmation) { setAuthError("Check your email to confirm the account, then sign in."); setAuthCard("signin"); return false; }
+      await adoptSession();
+      return true;
+    } catch { setAuthError("Couldn't reach the server. Try again."); return false; }
+    finally { setAuthBusy(false); }
+  }
+
+  async function signOut() {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
+    window.location.assign(window.location.pathname);   // a clean reload is the simplest correct reset
+  }
 
   // Save the grade whenever it changes, once a named student is loaded.
   useEffect(() => {
@@ -374,5 +451,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signOut, signUp, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }

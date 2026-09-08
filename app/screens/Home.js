@@ -8,9 +8,11 @@ import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 import GroveBackdrop from "../components/GroveBackdrop";
 import GroveSwitcher from "../components/GroveSwitcher";
+import AccountMenu from "../components/AccountMenu";
+import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, child, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, topicText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, child, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -67,6 +69,7 @@ export default function Home({ g }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           <button onClick={() => setScreen("progress")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="chart" size={15} color={C.primaryDeep} /> Progress</button>
           <button onClick={() => setScreen("help")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="help" size={15} color={C.primaryDeep} /> Help</button>
+          <AccountMenu g={g} />
         </div>
       </div>
 
@@ -82,7 +85,10 @@ export default function Home({ g }) {
       {grewIds.length > 0 && (
         <div className="fadeUp" style={{ margin: "14px 20px 0", background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 22px rgba(58,42,32,.10)" }}>
           <Icon name="sprout" size={20} color={C.sageDeep} />
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Your grove grew. {grewIds.length} {grewIds.length === 1 ? "tree" : "trees"} stood a little taller.</div>
+          <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>
+            Your grove grew. {grewIds.length} {grewIds.length === 1 ? "tree" : "trees"} stood a little taller.
+            {!child && <>{" "}<button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Save this grove</button></>}
+          </div>
         </div>
       )}
 
@@ -193,9 +199,14 @@ export default function Home({ g }) {
         )}
 
         <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 22 }}>
-          {preview ? "Sample grove · nothing is being saved" : child ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : "Demo · your grove lasts for this session"}
+          {preview ? "Sample grove · nothing is being saved" : child ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>sign in</button> to keep your grove</>)}
           {has && !preview && <>{" · "}<button onClick={clearGrove} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Clear grove</button></>}
         </p>
+        {auth.status === "legacy" && (
+          <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+            You're using a beta link. <button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Create an account</button> with the username <b>{child}</b> to keep these trees.
+          </p>
+        )}
       </div>
 
       {selected && (() => {
@@ -240,6 +251,7 @@ export default function Home({ g }) {
       })()}
 
       {switcherOpen && <GroveSwitcher g={g} onClose={() => setSwitcherOpen(false)} />}
+      {authCard && <AuthCard g={g} />}
     </Shell>
   );
 }
