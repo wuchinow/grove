@@ -212,10 +212,17 @@ export function useGrove() {
     setConcepts([]); setGrewIds([]); setSelected(null);
     setScreen("processing");
     try {
-      const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}`);
+      const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`);
       const j = r.ok ? await r.json() : null;
+      // A failed load must never fall through to an empty grove: the autosave
+      // effect below would then write that empty array back over real data
+      // 800ms later. Bail out to the grove list instead of pretending this
+      // grove is legitimately empty.
       if (j) { setConcepts(Array.isArray(j.concepts) ? j.concepts : []); setActiveGroveName(j.name || (entry ? entry.name : "")); }
-    } catch {}
+      else { setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again."); }
+    } catch {
+      setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again.");
+    }
     setScreen("home");
   }
 
