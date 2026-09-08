@@ -20,11 +20,14 @@ export async function GET() {
   const byStudent = {};
   for (const g of groves) {
     const list = Array.isArray(g.concepts) ? g.concepts : [];
-    const b = byStudent[g.student_id] || (byStudent[g.student_id] = { groves: [], concepts: 0, sessions: 0, flourishing: 0, needsWork: 0, lastActive: null });
+    const b = byStudent[g.student_id] || (byStudent[g.student_id] = { groves: [], concepts: 0, sessions: 0, flourishing: 0, gettingThere: 0, needsWork: 0, lastActive: null });
     b.groves.push({ id: g.id, name: g.name, concepts: list.length, sessions: list.reduce((n, x) => n + (x.days || 0), 0), updated_at: g.updated_at });
     b.concepts += list.length;
     b.sessions += list.reduce((n, x) => n + (x.days || 0), 0);
     b.flourishing += list.filter((x) => x.mastery >= 85).length;
+    // 40-84 sits in neither extreme. Counting it explicitly means the three
+    // columns add up to the concept total instead of quietly losing rows.
+    b.gettingThere += list.filter((x) => x.mastery >= 40 && x.mastery < 85).length;
     b.needsWork += list.filter((x) => x.mastery < 40).length;
     if (!b.lastActive || g.updated_at > b.lastActive) b.lastActive = g.updated_at;
   }
@@ -46,7 +49,7 @@ export async function GET() {
       insights: Array.isArray(s.insights) ? s.insights : [],
       created_at: s.created_at,
       updated_at: s.updated_at,
-      ...(byStudent[s.student_id] || { groves: [], concepts: 0, sessions: 0, flourishing: 0, needsWork: 0, lastActive: null }),
+      ...(byStudent[s.student_id] || { groves: [], concepts: 0, sessions: 0, flourishing: 0, gettingThere: 0, needsWork: 0, lastActive: null }),
     })),
     orphans,
   });

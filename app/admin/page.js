@@ -107,6 +107,7 @@ export default function Admin() {
         <Stat n={stats.concepts} label="Concepts planted" />
         <Stat n={stats.sessions} label="Sessions finished" />
         <Stat n={stats.mastery.flourishing} label="Flourishing" color={C.sageDeep} />
+        <Stat n={stats.mastery.gettingThere} label="Getting there" color={C.sage} />
         <Stat n={stats.mastery.needsWork} label="Need work" color={C.coral} />
         <Stat n={stats.mastery.untouched} label="Never tended" />
       </div>
@@ -146,7 +147,7 @@ export default function Admin() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: C.soft, color: C.sub, fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".04em" }}>
-                {["Student", "Account", "Grade", "Groves", "Concepts", "Sessions", "Flourishing", "Need work", "Last active", ""].map((h) => <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontWeight: 800 }}>{h}</th>)}
+                {["Student", "Account", "Grade", "Groves", "Concepts", "Sessions", "Flourishing", "Getting there", "Need work", "Last active", ""].map((h) => <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontWeight: 800 }}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -160,13 +161,14 @@ export default function Admin() {
                     <td style={{ padding: "10px 12px" }}>{s.concepts}</td>
                     <td style={{ padding: "10px 12px" }}>{s.sessions}</td>
                     <td style={{ padding: "10px 12px", color: C.sageDeep, fontWeight: 700 }}>{s.flourishing}</td>
+                    <td style={{ padding: "10px 12px", color: C.sage, fontWeight: 700 }}>{s.gettingThere}</td>
                     <td style={{ padding: "10px 12px", color: C.coral, fontWeight: 700 }}>{s.needsWork}</td>
                     <td style={{ padding: "10px 12px", color: C.sub }}>{ago(s.lastActive || s.updated_at)}</td>
                     <td style={{ padding: "10px 12px" }}><button onClick={() => setOpen(open === s.student_id ? null : s.student_id)} style={{ border: "none", background: "transparent", color: C.primaryDeep, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>{open === s.student_id ? "Hide" : "Details"}</button></td>
                   </tr>
                   {open === s.student_id && (
                     <tr>
-                      <td colSpan={10} style={{ padding: "6px 12px 16px", background: C.bg }}>
+                      <td colSpan={11} style={{ padding: "6px 12px 16px", background: C.bg }}>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
                           <div>
                             <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>GROVES</div>

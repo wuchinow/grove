@@ -38,7 +38,7 @@ export async function GET() {
     activeToday: activeIds(1),
     activeWeek: activeIds(7),
     activeMonth: activeIds(30),
-    mastery: { buckets, flourishing: all.filter((x) => x.mastery >= 85).length, needsWork: all.filter((x) => x.mastery < 40).length, untouched: all.filter((x) => !x.reviews).length },
+    mastery: { buckets, flourishing: all.filter((x) => x.mastery >= 85).length, gettingThere: all.filter((x) => x.mastery >= 40 && x.mastery < 85).length, needsWork: all.filter((x) => x.mastery < 40).length, untouched: all.filter((x) => !x.reviews).length },
     struggling: all.filter((x) => (x.reviews || 0) > 0 && x.mastery < 40).sort((a, b) => a.mastery - b.mastery).slice(0, 8).map((x) => ({ name: x.name, mastery: x.mastery, reviews: x.reviews })),
   });
 }
