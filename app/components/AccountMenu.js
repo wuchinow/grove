@@ -38,7 +38,7 @@ export default function AccountMenu({ g }) {
           <div className="fadeUp" style={{ position: "absolute", top: 64, right: 20, zIndex: 30, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, boxShadow: "0 18px 40px rgba(40,24,12,.28)", padding: 8 }}>
             <div style={{ padding: "6px 10px 8px", borderBottom: `1px solid ${C.line}`, marginBottom: 4 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>{auth.username || child}</div>
-              <div style={{ fontSize: 11.5, color: C.sub, fontWeight: 700 }}>{signedIn ? "Signed in" : "Using a beta link"}</div>
+              <div style={{ fontSize: 11.5, color: C.sub, fontWeight: 700 }}>{signedIn ? (auth.role === "admin" ? "Signed in · admin" : "Signed in") : "Using a beta link"}</div>
             </div>
             {profile && (
               <Item icon="sprout" onClick={() => {

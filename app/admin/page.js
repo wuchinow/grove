@@ -84,7 +84,7 @@ export default function Admin() {
           <div style={{ width: 36, height: 36, borderRadius: 12, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center" }}><Icon name="chart" size={18} color="#FCEFE4" /></div>
           <div>
             <div className="disp" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.1 }}>Grove dashboard</div>
-            <div style={{ fontSize: 12.5, color: C.sub, fontWeight: 700 }}>Admin · live from Supabase</div>
+            <div style={{ fontSize: 12.5, color: C.sub, fontWeight: 700 }}>{stats.me ? `Signed in as ${stats.me.username || stats.me.student_id} · admin` : "Admin"} · live from Supabase</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -153,7 +153,7 @@ export default function Admin() {
               {data.students.map((s) => (
                 <React.Fragment key={s.student_id}>
                   <tr style={{ borderTop: `1px solid ${C.line}` }}>
-                    <td style={{ padding: "10px 12px", fontWeight: 800 }}>{s.username || s.student_id}{s.role === "admin" && <span style={{ marginLeft: 6, fontSize: 10.5, background: C.soft, color: C.primaryDeep, padding: "2px 7px", borderRadius: 999 }}>admin</span>}</td>
+                    <td style={{ padding: "10px 12px", fontWeight: 800 }}>{s.username || s.student_id}{s.role === "admin" && <span style={{ marginLeft: 6, fontSize: 10.5, background: C.soft, color: C.primaryDeep, padding: "2px 7px", borderRadius: 999 }}>admin</span>}{stats.me && s.student_id === stats.me.student_id && <span style={{ marginLeft: 6, fontSize: 10.5, background: C.sageDeep, color: "#FCEFE4", padding: "2px 7px", borderRadius: 999 }}>you</span>}</td>
                     <td style={{ padding: "10px 12px", color: s.claimed ? C.sageDeep : C.sub, fontWeight: 700 }}>{s.claimed ? "Signed up" : "Beta link"}</td>
                     <td style={{ padding: "10px 12px" }}>{s.grade || "—"}</td>
                     <td style={{ padding: "10px 12px" }}>{s.groves.length}</td>

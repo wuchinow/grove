@@ -7,7 +7,8 @@ import { cfg, requireAdmin } from "../../../lib/auth";
 export async function GET() {
   const c = cfg();
   if (!c) return Response.json({ error: "Server is missing Supabase settings." }, { status: 500 });
-  if (!(await requireAdmin(c))) return Response.json({ error: "Not found." }, { status: 404 });
+  const me = await requireAdmin(c);
+  if (!me) return Response.json({ error: "Not found." }, { status: 404 });
 
   const [sRes, gRes] = await Promise.all([
     fetch(`${c.rest}/students?select=student_id,auth_user_id,created_at,updated_at`, { headers: c.db, cache: "no-store" }),
@@ -25,6 +26,9 @@ export async function GET() {
   const activeIds = (days) => new Set(groves.filter((g) => within(g.updated_at, days)).map((g) => g.student_id)).size;
 
   return Response.json({
+    // Who is looking. Lets the dashboard say "signed in as X" and mark that
+    // row in the table, so it is never ambiguous whose admin session this is.
+    me: { student_id: me.student_id, username: me.username, role: me.role },
     students: students.length,
     claimed: students.filter((s) => s.auth_user_id).length,
     newThisWeek: students.filter((s) => within(s.created_at, 7)).length,
