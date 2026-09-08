@@ -93,10 +93,26 @@ export function useGrove() {
     let cancelled = false;
     async function boot() {
       try {
+        // Coming back from Google? Two possible outcomes are encoded in the
+        // URL: the person needs to pick a username, or something failed.
+        const back = new URLSearchParams(window.location.search);
+        const claim = back.get("claim") === "1";
+        const oautherr = back.get("autherror");
+        if (claim || oautherr) window.history.replaceState(null, "", window.location.pathname);
+        if (oautherr) setAuthError(oautherr === "denied" ? "Google sign-in was cancelled." : "Google sign-in didn't complete. Try again.");
+
         const r = await fetch("/api/auth/session", { cache: "no-store" });
         const j = r.ok ? await r.json() : null;
         if (cancelled) return;
         if (j && j.student) { applyPerson(j.student.student_id, j, "account"); return; }
+        // Signed in with Google but no username yet: ask for one, and don't
+        // fall through to guest mode, since the session is real.
+        if (claim) {
+          setAuth({ status: "claiming", username: "", role: "student" });
+          setAuthCard("claim");
+          return;
+        }
+        if (oautherr) { setAuth({ status: "guest", username: "", role: "student" }); setAuthCard("signin"); return; }
         const q = new URLSearchParams(window.location.search);
         const name = q.get("student") || q.get("child");
         const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
@@ -158,6 +174,22 @@ export function useGrove() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setAuthError(j.error || "Couldn't create the account."); return false; }
       if (j.needsConfirmation) { setAuthError("Check your email to confirm the account, then sign in."); setAuthCard("signin"); return false; }
+      await adoptSession();
+      return true;
+    } catch { setAuthError("Couldn't reach the server. Try again."); return false; }
+    finally { setAuthBusy(false); }
+  }
+
+  function signInWithGoogle() {
+    window.location.assign("/api/auth/google");
+  }
+
+  async function claimUsername(username) {
+    setAuthBusy(true); setAuthError("");
+    try {
+      const r = await fetch("/api/auth/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setAuthError(j.error || "Couldn't save that username."); return false; }
       await adoptSession();
       return true;
     } catch { setAuthError("Couldn't reach the server. Try again."); return false; }
@@ -458,5 +490,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signOut, signUp, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
 }

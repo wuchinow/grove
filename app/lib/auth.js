@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import crypto from "crypto";
 
 // ---- Server-side auth ------------------------------------------------------
 // Grove talks to Supabase Auth (GoTrue) over its REST API with plain fetch,
@@ -93,6 +94,48 @@ export function authError(r, fallback) {
   return msg || fallback;
 }
 
+// ---- Google / PKCE --------------------------------------------------------
+// OAuth is a redirect round-trip, unlike the password grant. We use PKCE so
+// the code exchange happens server-side and no token ever touches the URL bar:
+// /api/auth/google mints a verifier, stashes it in a short-lived httpOnly
+// cookie, and sends the challenge to GoTrue; /api/auth/callback reads the
+// cookie back and trades the returned code for a session.
+const PKCE_COOKIE = "grove_pkce";
+
+export function newVerifier() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+export function challengeFor(verifier) {
+  return crypto.createHash("sha256").update(verifier).digest("base64url");
+}
+export function writeVerifierCookie(verifier) {
+  cookies().set(PKCE_COOKIE, verifier, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 600,
+  });
+}
+export function readVerifierCookie() {
+  const c = cookies().get(PKCE_COOKIE);
+  return c && c.value ? c.value : null;
+}
+export function clearVerifierCookie() {
+  cookies().set(PKCE_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 0 });
+}
+
+// Trade the ?code= from GoTrue's redirect for a real session.
+export async function authExchangeCode(c, authCode, verifier) {
+  return gotrue(c, "/token?grant_type=pkce", {
+    method: "POST",
+    body: JSON.stringify({ auth_code: authCode, code_verifier: verifier }),
+  });
+}
+
+// Where GoTrue should send the browser after Google. Derived from the request
+// so it works on either vercel.app alias without a hardcoded domain, but both
+// must still be listed in Supabase Auth's redirect allowlist.
+export function callbackUrl(request) {
+  return new URL("/api/auth/callback", request.url).toString();
+}
+
 // ---- students table -------------------------------------------------------
 export async function studentByAuthId(c, authUserId) {
   const r = await fetch(`${c.rest}/students?auth_user_id=eq.${encodeURIComponent(authUserId)}&select=student_id,username,email,role,profile,insights`, { headers: c.db, cache: "no-store" });
@@ -140,6 +183,13 @@ export async function resolveStudent(c, fallbackId) {
   const row = await studentById(c, id);
   if (!row || row.auth_user_id) return null;
   return { ...row, mode: "legacy" };
+}
+
+// Is there a students row for this auth user? A Google sign-in creates the
+// auth account before any username exists, so the callback needs to tell
+// "known person" from "needs to pick a username" without guessing.
+export async function studentExistsFor(c, authUserId) {
+  return !!(await studentByAuthId(c, authUserId));
 }
 
 export async function requireAdmin(c) {
