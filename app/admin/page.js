@@ -27,12 +27,43 @@ const bandColor = (m) => (m < 40 ? C.coral : m < 85 ? C.sage : C.sageDeep);
 function Card({ children, style }) {
   return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: "16px 18px", boxShadow: "0 6px 18px rgba(58,42,32,.07)", ...style }}>{children}</div>;
 }
-function Stat({ n, label, color }) {
+// Four headline numbers, sans-serif (the disp/Fraunces treatment stays
+// reserved for the page title, not repeated fifteen times down the page).
+function KPI({ n, label, sub }) {
   return (
-    <Card style={{ flex: "1 1 120px", minWidth: 120, textAlign: "center", padding: "14px 10px" }}>
-      <div className="disp" style={{ fontSize: 28, fontWeight: 700, color: color || C.ink }}>{n}</div>
-      <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 2 }}>{label}</div>
+    <Card style={{ padding: "16px 18px" }}>
+      <div style={{ fontSize: 30, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{n}</div>
+      <div style={{ fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 3 }}>{label}</div>
+      {sub && <div style={{ fontSize: 11.5, color: C.stone, fontWeight: 700, marginTop: 4 }}>{sub}</div>}
     </Card>
+  );
+}
+// A ratio against a known ceiling (active-today out of total students, etc).
+function Meter({ label, value, max }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700 }}>
+        <span style={{ color: C.sub }}>{label}</span>
+        <span>{value} of {max}</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: C.line, overflow: "hidden", marginTop: 4 }}>
+        <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: C.primary }} />
+      </div>
+    </div>
+  );
+}
+// Proportional status bar. Segments with value 0 just don't render, so a
+// student with no concepts yet doesn't get a phantom sliver of every color.
+function Segbar({ segments, height = 10 }) {
+  const total = segments.reduce((n, s) => n + s.value, 0);
+  if (total === 0) return <span style={{ fontSize: 12.5, color: C.sub, fontWeight: 700 }}>No concepts yet</span>;
+  return (
+    <div style={{ display: "flex", gap: 2, height, borderRadius: 999, overflow: "hidden", background: C.line }}>
+      {segments.filter((s) => s.value > 0).map((s, i) => (
+        <div key={i} style={{ flex: `${s.value} 1 0%`, background: s.color }} />
+      ))}
+    </div>
   );
 }
 function H({ children }) {
@@ -98,27 +129,45 @@ export default function Admin() {
       </div>
 
       <H>Right now</H>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <Stat n={stats.students} label="Students" />
-        <Stat n={stats.claimed} label="With accounts" color={C.sageDeep} />
-        <Stat n={stats.newThisWeek} label="New this week" />
-        <Stat n={stats.activeToday} label="Active today" />
-        <Stat n={stats.activeWeek} label="Active 7 days" />
-        <Stat n={stats.activeMonth} label="Active 30 days" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+        <KPI n={stats.students} label="Students" sub={`${stats.claimed} with accounts`} />
+        <KPI n={stats.groves} label="Groves" />
+        <KPI n={stats.concepts} label="Concepts planted" sub={`${stats.mastery.untouched} never tended`} />
+        <KPI n={stats.sessions} label="Sessions finished" />
       </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-        <Stat n={stats.groves} label="Groves" />
-        <Stat n={stats.concepts} label="Concepts planted" />
-        <Stat n={stats.sessions} label="Sessions finished" />
-        <Stat n={stats.mastery.flourishing} label="Flourishing" color={C.sageDeep} />
-        <Stat n={stats.mastery.gettingThere} label="Getting there" color={C.sage} />
-        <Stat n={stats.mastery.needsWork} label="Need work" color={C.coral} />
-        <Stat n={stats.mastery.untouched} label="Never tended" />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, marginTop: 12 }}>
+        <Card>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>Engagement</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
+            <Meter label="Active today" value={stats.activeToday} max={stats.students} />
+            <Meter label="Active last 7 days" value={stats.activeWeek} max={stats.students} />
+            <Meter label="Active last 30 days" value={stats.activeMonth} max={stats.students} />
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 12 }}>{stats.newThisWeek} of {stats.students} students joined this week.</div>
+        </Card>
+        <Card>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>Concept health</div>
+          <div style={{ marginTop: 14 }}>
+            <Segbar height={14} segments={[
+              { value: stats.mastery.flourishing, color: C.sageDeep },
+              { value: stats.mastery.gettingThere, color: C.sage },
+              { value: stats.mastery.needsWork, color: C.coral },
+            ]} />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 10, fontSize: 12.5, fontWeight: 700 }}>
+            <span style={{ color: C.sageDeep }}>Flourishing {stats.mastery.flourishing}</span>
+            <span style={{ color: C.sage }}>Getting there {stats.mastery.gettingThere}</span>
+            <span style={{ color: C.coral }}>Need work {stats.mastery.needsWork}</span>
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 10 }}>{stats.mastery.untouched} of those {stats.concepts} concepts have never had a session. Some overlap with need work above.</div>
+        </Card>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12, marginTop: 12 }}>
         <Card>
           <div style={{ fontWeight: 800, fontSize: 14 }}>Mastery across every concept</div>
+          <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 2 }}>All {stats.concepts} concepts, tended and untended</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110, marginTop: 14 }}>
             {b.map((n, i) => (
               <div key={i} style={{ flex: 1, textAlign: "center" }}>
@@ -147,79 +196,76 @@ export default function Admin() {
 
       <H>Students</H>
       <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-            <thead>
-              <tr style={{ background: C.soft, color: C.sub, fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".04em" }}>
-                {["Student", "Account", "Grade", "Groves", "Concepts", "Sessions", "Flourishing", "Getting there", "Need work", "Last active", ""].map((h) => <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontWeight: 800 }}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {data.students.map((s) => (
-                <React.Fragment key={s.student_id}>
-                  <tr style={{ borderTop: `1px solid ${C.line}` }}>
-                    <td style={{ padding: "10px 12px", fontWeight: 800 }}>{s.username || s.student_id}{s.role === "admin" && <span style={{ marginLeft: 6, fontSize: 10.5, background: C.soft, color: C.primaryDeep, padding: "2px 7px", borderRadius: 999 }}>admin</span>}{stats.me && s.student_id === stats.me.student_id && <span style={{ marginLeft: 6, fontSize: 10.5, background: C.sageDeep, color: "#FCEFE4", padding: "2px 7px", borderRadius: 999 }}>you</span>}</td>
-                    <td style={{ padding: "10px 12px", color: s.claimed ? C.sageDeep : C.sub, fontWeight: 700 }}>{s.claimed ? "Signed up" : "Beta link"}</td>
-                    <td style={{ padding: "10px 12px" }}>{s.grade || "—"}</td>
-                    <td style={{ padding: "10px 12px" }}>{s.groves.length}</td>
-                    <td style={{ padding: "10px 12px" }}>{s.concepts}</td>
-                    <td style={{ padding: "10px 12px" }}>{s.sessions}</td>
-                    <td style={{ padding: "10px 12px", color: C.sageDeep, fontWeight: 700 }}>{s.flourishing}</td>
-                    <td style={{ padding: "10px 12px", color: C.sage, fontWeight: 700 }}>{s.gettingThere}</td>
-                    <td style={{ padding: "10px 12px", color: C.coral, fontWeight: 700 }}>{s.needsWork}</td>
-                    <td style={{ padding: "10px 12px", color: C.sub }}>{ago(s.lastActive || s.updated_at)}</td>
-                    <td style={{ padding: "10px 12px" }}><button onClick={() => setOpen(open === s.student_id ? null : s.student_id)} style={{ border: "none", background: "transparent", color: C.primaryDeep, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>{open === s.student_id ? "Hide" : "Details"}</button></td>
-                  </tr>
-                  {open === s.student_id && (
-                    <tr>
-                      <td colSpan={11} style={{ padding: "6px 12px 16px", background: C.bg }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>GROVES</div>
-                            {s.groves.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
-                            {s.groves.map((g) => (
-                              <div key={g.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                                  <Tree days={Math.min(5, g.sessions)} mastery={g.concepts ? 60 : 0} width={22} />
-                                  <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
-                                  <span style={{ color: C.sub }}>{g.concepts} concepts · {g.sessions} sessions · {ago(g.updated_at)}</span>
-                                </div>
-                                {/* Weakest first: the ones worth looking at are at the top. */}
-                                {(g.items || []).length > 0 && (
-                                  <div style={{ marginTop: 5, marginLeft: 30, display: "flex", flexDirection: "column", gap: 3 }}>
-                                    {g.items.map((c, i) => (
-                                      <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
-                                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-                                        <span style={{ color: C.stone, flexShrink: 0 }}>{c.days === 0 ? "never tended" : `${c.days} ${c.days === 1 ? "session" : "sessions"}`}</span>
-                                        <span style={{ color: bandColor(c.mastery), fontWeight: 800, flexShrink: 0, minWidth: 26, textAlign: "right" }}>{c.mastery}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {s.interests.length > 0 && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 8 }}>Into: {s.interests.join(", ")}</div>}
-                            {s.email && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 4 }}>{s.email}</div>}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>INSIGHTS THE TUTOR HAS SAVED</div>
-                            {s.insights.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
-                            {[...s.insights].reverse().slice(0, 6).map((x, i) => (
-                              <div key={i} style={{ fontSize: 12.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}>
-                                <span style={{ fontWeight: 800 }}>{x.concept}</span> <span style={{ color: C.sub }}>· {ago(x.at)}</span>
-                                <div style={{ marginTop: 2, lineHeight: 1.45 }}>{x.note}</div>
-                              </div>
-                            ))}
-                          </div>
+        {data.students.map((s, idx) => (
+          <div key={s.student_id} style={{ padding: "14px 18px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}` }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontWeight: 800, fontSize: 14.5 }}>{s.username || s.student_id}</span>
+              {s.role === "admin" && <span style={{ fontSize: 10.5, background: C.soft, color: C.primaryDeep, padding: "2px 7px", borderRadius: 999, fontWeight: 800 }}>admin</span>}
+              {stats.me && s.student_id === stats.me.student_id && <span style={{ fontSize: 10.5, background: C.sageDeep, color: "#FCEFE4", padding: "2px 7px", borderRadius: 999, fontWeight: 800 }}>you</span>}
+              <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 800, color: s.claimed ? C.sageDeep : C.sub, background: s.claimed ? C.soft : "transparent", border: s.claimed ? "none" : `1px solid ${C.line}`, padding: "3px 9px", borderRadius: 999 }}>{s.claimed ? "Signed up" : "Beta link"}</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 6 }}>
+              {s.grade && <span>Grade {s.grade}</span>}
+              <span>{s.groves.length} {s.groves.length === 1 ? "grove" : "groves"}</span>
+              <span>{s.concepts} concepts</span>
+              <span>{s.sessions} {s.sessions === 1 ? "session" : "sessions"}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 9 }}>
+              <div style={{ flex: 1, minWidth: 80 }}>
+                <Segbar segments={[
+                  { value: s.flourishing, color: C.sageDeep },
+                  { value: s.gettingThere, color: C.sage },
+                  { value: s.needsWork, color: C.coral },
+                ]} />
+              </div>
+              <span style={{ fontSize: 12, color: C.sub, fontWeight: 700, whiteSpace: "nowrap" }}>{ago(s.lastActive || s.updated_at)}</span>
+              <button onClick={() => setOpen(open === s.student_id ? null : s.student_id)} style={{ border: "none", background: "transparent", color: C.primaryDeep, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, padding: 0, whiteSpace: "nowrap" }}>{open === s.student_id ? "Hide" : "Details"}</button>
+            </div>
+            {open === s.student_id && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>GROVES</div>
+                    {s.groves.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
+                    {s.groves.map((g) => (
+                      <div key={g.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                          <Tree days={Math.min(5, g.sessions)} mastery={g.concepts ? 60 : 0} width={22} />
+                          <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
+                          <span style={{ color: C.sub }}>{g.concepts} concepts · {g.sessions} sessions · {ago(g.updated_at)}</span>
                         </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        {/* Weakest first: the ones worth looking at are at the top. */}
+                        {(g.items || []).length > 0 && (
+                          <div style={{ marginTop: 5, marginLeft: 30, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {g.items.map((c, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
+                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                                <span style={{ color: C.stone, flexShrink: 0 }}>{c.days === 0 ? "never tended" : `${c.days} ${c.days === 1 ? "session" : "sessions"}`}</span>
+                                <span style={{ color: bandColor(c.mastery), fontWeight: 800, flexShrink: 0, minWidth: 26, textAlign: "right" }}>{c.mastery}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {s.interests.length > 0 && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 8 }}>Into: {s.interests.join(", ")}</div>}
+                    {s.email && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 4 }}>{s.email}</div>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>INSIGHTS THE TUTOR HAS SAVED</div>
+                    {s.insights.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
+                    {[...s.insights].reverse().slice(0, 6).map((x, i) => (
+                      <div key={i} style={{ fontSize: 12.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}>
+                        <span style={{ fontWeight: 800 }}>{x.concept}</span> <span style={{ color: C.sub }}>· {ago(x.at)}</span>
+                        <div style={{ marginTop: 2, lineHeight: 1.45 }}>{x.note}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </Card>
 
       {(unclaimed.length > 0 || data.orphans.length > 0) && (
