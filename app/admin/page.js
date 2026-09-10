@@ -268,6 +268,36 @@ export default function Admin() {
         ))}
       </Card>
 
+      {stats.usage && (
+        <>
+          <H>API usage &amp; cost</H>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+            <KPI n={stats.usage.today.calls} label="Calls today" sub={`$${stats.usage.today.cost.toFixed(2)} est.`} />
+            <KPI n={stats.usage.week.calls} label="Calls, 7 days" sub={`$${stats.usage.week.cost.toFixed(2)} est.`} />
+            <KPI n={stats.usage.month.calls} label="Calls, 30 days" sub={`$${stats.usage.month.cost.toFixed(2)} est.`} />
+            <KPI n={stats.usage.failedCalls} label="Failed calls" sub="last 30 days" />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Card>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>By call type, last 30 days</div>
+              <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 2 }}>Estimated from Haiku 4.5 list pricing ($1 / $5 per million input / output tokens); actual billing may run a little lower with caching.</div>
+              {Object.keys(stats.usage.byKind).length === 0 ? (
+                <div style={{ color: C.sub, fontSize: 13, marginTop: 12 }}>No calls logged yet.</div>
+              ) : (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {Object.entries(stats.usage.byKind).map(([kind, v]) => (
+                    <div key={kind} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700 }}>
+                      <span style={{ textTransform: "capitalize" }}>{kind}</span>
+                      <span style={{ color: C.sub }}>{v.calls} {v.calls === 1 ? "call" : "calls"} &middot; ${v.cost.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
+
       {(unclaimed.length > 0 || data.orphans.length > 0) && (
         <>
           <H>Attach an old grove to an account</H>
@@ -294,7 +324,7 @@ export default function Admin() {
       )}
 
       <div style={{ marginTop: 28, fontSize: 12, color: C.stone, lineHeight: 1.5 }}>
-        Traffic (page views, referrers, devices) lives in Vercel Analytics. Per-turn metrics arrive with the turns table in Build 2.
+        Traffic (page views, referrers, devices) lives in Vercel Analytics.
       </div>
     </>
   );

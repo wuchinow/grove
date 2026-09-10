@@ -1,11 +1,13 @@
 // ---- AI helpers ------------------------------------------------------------
 // This calls our own server route (app/api/anthropic/route.js), which holds the
 // real Anthropic API key server-side. The browser never sees the key.
-export async function callAPI(messages, system) {
+// `kind` ("extract" | "topic" | "tutor") labels the call for the admin usage
+// dashboard - it's stripped before forwarding to Anthropic, not part of the API.
+export async function callAPI(messages, system, kind) {
   const res = await fetch("/api/anthropic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, system, messages }),
+    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, system, messages, kind }),
   });
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
@@ -140,8 +142,8 @@ Never grade an honest "I don't know" as "struggling" - that just teaches guessin
 Respond with ONLY a JSON object, no markdown or backticks. Avoid double quotes inside string values (use single quotes or none) so the JSON stays valid:
 {"message":"<what you say>","phase":"question|hint|explain|check|done","understanding":"unknown|struggling|partial|solid","options":["<choice>", ...],"correctOption":"<matching options entry, or "" if options is []>","visual":<optional, omit unless genuinely needed>,"reflection":"<optional, only set when phase is done>"}`;
 
-export const EXTRACT_SYSTEM = `You look at a photo of a student's schoolwork (notes, worksheet, study guide, textbook page, diagram, vocab list) and pull out the key concepts they need to learn.`;
-export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo. If the photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows. Respond with ONLY JSON, no markdown:
+export const EXTRACT_SYSTEM = `You look at one or more photos of a student's schoolwork (notes, worksheet, study guide, textbook page, diagram, vocab list) and pull out the key concepts they need to learn. When there's more than one photo, treat them as pages of the same assignment and combine what they show rather than treating each in isolation.`;
+export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo (or set of photos, if there's more than one - they're pages of the same assignment). If any photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows, drawing on whichever page it appears on. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>","attempt":"<optional: what the student's own work shows for this concept, only if visible>"}]}`;
 
 export const TOPIC_SYSTEM = `You take a topic a student wants to study and break it into the handful of concepts worth learning first. The topic may be a school subject, a chapter, a single idea, or something they are simply curious about.`;

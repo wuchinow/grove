@@ -302,23 +302,29 @@ export function useGrove() {
     fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`, { method: "DELETE" }).catch(() => {});
   }
 
+  // Accepts one photo or several at once (e.g. a multi-page worksheet or a
+  // multi-page calc test). Every page goes into a single extraction call so
+  // the model can read them as one assignment rather than merging separate
+  // results itself. Capped at 6 pages to keep the request a reasonable size.
   async function handleFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files).slice(0, 6) : [];
+    if (!files.length) return;
+    const multi = files.length > 1;
     setError(""); setSourceMode("photo"); setScreen("processing");
     try {
-      const { data } = await fileToImage(file);
-      const text = await callAPI(
-        [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data } }, { type: "text", text: EXTRACT_PROMPT }] }],
-        EXTRACT_SYSTEM
-      );
+      const images = await Promise.all(files.map((f) => fileToImage(f)));
+      const content = [
+        ...images.map((img) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: img.data } })),
+        { type: "text", text: EXTRACT_PROMPT },
+      ];
+      const text = await callAPI([{ role: "user", content }], EXTRACT_SYSTEM, "extract");
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || "Your work");
       setPending(parsed.concepts.slice(0, 8));
       setScreen("confirm");
     } catch {
-      setError("I couldn't read that one clearly. Try a brighter, closer photo.");
+      setError(multi ? "I couldn't read those clearly. Try brighter, closer photos." : "I couldn't read that one clearly. Try a brighter, closer photo.");
       setScreen("home");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
@@ -334,7 +340,8 @@ export function useGrove() {
     try {
       const text = await callAPI(
         [{ role: "user", content: TOPIC_PROMPT(topic, profile && profile.grade) }],
-        TOPIC_SYSTEM
+        TOPIC_SYSTEM,
+        "topic"
       );
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
@@ -411,7 +418,7 @@ export function useGrove() {
     setActiveId(id); setPhase("question"); setChat([]); setBusy(true); setFailed(false);
     const seed = [{ role: "user", content: tutorSeed(c) }];
     try {
-      const text = await callAPI(seed, tutorSystem({ ...(profile || {}), insights }));
+      const text = await callAPI(seed, tutorSystem({ ...(profile || {}), insights }), "tutor");
       const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
       setApiMsgs([...seed, { role: "assistant", content: text }]);
       setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], correctOption: j.correctOption || "", visual: j.visual || null }]);
@@ -452,7 +459,7 @@ export function useGrove() {
     const msgs = [...apiMsgs, { role: "user", content: apiContent }];
     setApiMsgs(msgs); setBusy(true);
     try {
-      const text = await callAPI(msgs, tutorSystem({ ...(profile || {}), insights }));
+      const text = await callAPI(msgs, tutorSystem({ ...(profile || {}), insights }), "tutor");
       const j = parseJSON(text) || { message: text, phase, understanding: "unknown" };
       // Trust the answer key over the model's own re-judgment if the two ever
       // disagree - the mastery score should never dip on a genuinely correct

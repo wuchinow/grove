@@ -181,11 +181,11 @@ export default function Home({ g }) {
                 <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="camera" size={18} color={C.primaryDeep} /></span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Photograph your work</span>
-                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Notes, a worksheet, or a textbook page</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Notes, a worksheet, or several pages at once</span>
                 </span>
               </button>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+            <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFile} style={{ display: "none" }} />
 
             {!has && !hideSample && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
