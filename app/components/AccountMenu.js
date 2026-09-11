@@ -8,10 +8,10 @@ import Icon from "./Icon";
 // in; for a signed-in student it opens a short menu. Same dropdown pattern
 // as GroveSwitcher: no dim, closes on an outside tap.
 export default function AccountMenu({ g }) {
-  const { auth, child, profile, setAuthCard, setEditingProfile, setScreen, setSetupGrade, setSetupInterests, signOut } = g;
+  const { auth, profile, setAuthCard, setEditingProfile, setScreen, setSetupGrade, setSetupInterests, signOut, student } = g;
   const [open, setOpen] = React.useState(false);
   const signedIn = auth.status === "account";
-  const initial = (auth.username || child || "?").slice(0, 1).toUpperCase();
+  const initial = (auth.username || student || "?").slice(0, 1).toUpperCase();
 
   if (!signedIn && auth.status !== "legacy") {
     return (
@@ -29,7 +29,7 @@ export default function AccountMenu({ g }) {
 
   return (
     <>
-      <button onClick={() => setOpen((v) => !v)} title={auth.username || child} aria-label="Account" style={{ width: 36, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.12)", display: "grid", placeItems: "center", fontFamily: "'Fraunces',Georgia,serif" }}>
+      <button onClick={() => setOpen((v) => !v)} title={auth.username || student} aria-label="Account" style={{ width: 36, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.12)", display: "grid", placeItems: "center", fontFamily: "'Fraunces',Georgia,serif" }}>
         {initial}
       </button>
       {open && (
@@ -37,7 +37,7 @@ export default function AccountMenu({ g }) {
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
           <div className="fadeUp" style={{ position: "absolute", top: 64, right: 20, zIndex: 30, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, boxShadow: "0 18px 40px rgba(40,24,12,.28)", padding: 8 }}>
             <div style={{ padding: "6px 10px 8px", borderBottom: `1px solid ${C.line}`, marginBottom: 4 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>{auth.username || child}</div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{auth.username || student}</div>
               <div style={{ fontSize: 11.5, color: C.sub, fontWeight: 700 }}>{signedIn ? (auth.role === "admin" ? "Signed in · admin" : "Signed in") : "Using a beta link"}</div>
             </div>
             {profile && (

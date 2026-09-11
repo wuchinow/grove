@@ -6,6 +6,7 @@
 // currently uses.
 export const PRICING = {
   "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+  "claude-sonnet-5": { input: 2, output: 10 },
 };
 
 export function estCost(model, inputTokens, outputTokens) {

@@ -44,7 +44,7 @@ export default function Setup({ g }) {
               value={setupInterests[i] || ""}
               onChange={(e) => setInterest(i, e.target.value)}
               placeholder={placeholders[i]}
-              style={{ border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "12px 15px", fontSize: 15, outline: "none", fontFamily: "inherit", background: C.card }}
+              style={{ border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "12px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.card }}
             />
           ))}
         </div>

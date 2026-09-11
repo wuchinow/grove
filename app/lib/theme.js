@@ -43,4 +43,13 @@ export const FONTS = `
 @media (prefers-reduced-motion: reduce){
   .fadeUp,.pop,.grew,.dotPulse{animation:none}
 }
+.groveHeaderIcon{display:grid;place-items:center}
+.groveHeaderName{font-size:19px;max-width:150px}
+.groveHeaderPill{padding:0 13px}
+@media (max-width:480px){
+  .groveHeaderIcon{display:none}
+  .groveHeaderName{font-size:16px;max-width:96px}
+  .groveHeaderPill{padding:0;width:36px;justify-content:center}
+  .groveHeaderPillLabel{display:none}
+}
 `;

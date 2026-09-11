@@ -29,7 +29,7 @@ export default function Confirm({ g }) {
               </div>
             ))}
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={addText} onChange={(e) => setAddText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && addText.trim()) { setPending([...pending, { name: addText.trim(), note: "" }]); setAddText(""); } }} placeholder="Add a concept…" style={{ flex: 1, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", fontSize: 14, outline: "none", background: C.card, fontFamily: "inherit" }} />
+              <input value={addText} onChange={(e) => setAddText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && addText.trim()) { setPending([...pending, { name: addText.trim(), note: "" }]); setAddText(""); } }} placeholder="Add a concept…" style={{ flex: 1, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", fontSize: 16, outline: "none", background: C.card, fontFamily: "inherit" }} />
               <button onClick={() => { if (addText.trim()) { setPending([...pending, { name: addText.trim(), note: "" }]); setAddText(""); } }} style={{ border: "none", background: C.soft, color: C.primaryDeep, padding: "0 16px", borderRadius: 14, fontWeight: 800, cursor: "pointer" }}>Add</button>
             </div>
           </div>

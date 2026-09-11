@@ -14,7 +14,7 @@ import { callAPI, parseJSON, fileToImage, tutorSystem, tutorSeed, EXTRACT_SYSTEM
 // see the boot effect) has groves saved to Supabase via /api/student and
 // /api/grove. A guest gets the identical multi-grove experience held entirely
 // in memory in `localGroves` below: nothing is sent to the server, and it's
-// gone on refresh. Every function below branches on `child` internally, so
+// gone on refresh. Every function below branches on `student` internally, so
 // the screens never need to know which mode they're in.
 export function useGrove() {
   const [screen, setScreen] = useState("home");
@@ -26,7 +26,7 @@ export function useGrove() {
   const [selected, setSelected] = useState(null);
   const [grewIds, setGrewIds] = useState([]);
   const [failed, setFailed] = useState(false);
-  const [child, setChild] = useState(null);      // signed-in (or legacy-link) student id; null = guest
+  const [student, setStudent] = useState(null);   // signed-in (or legacy-link) student id; null = guest
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
   const [profile, setProfile] = useState(null);   // { grade } once set up
@@ -64,9 +64,9 @@ export function useGrove() {
 
   const active = concepts.find((c) => c.id === activeId);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [chat, busy]);
+  // Chat-pane scroll position (top-align a new tutor reply vs. bottom-anchor
+  // the student's own turn) is DOM-dependent and owned by Tutor.js, which has
+  // the message refs.
 
   // Who is this? Three answers, in order of preference:
   //   account - a session cookie names a signed-in student (the normal case)
@@ -74,7 +74,7 @@ export function useGrove() {
   //             has claimed yet; those links keep working until the person
   //             signs up, then stop
   //   guest   - neither; the in-memory demo, with the welcome card offered once
-  // `child` stays the student id in the first two cases and null for a guest,
+  // `student` stays the student id in the first two cases and null for a guest,
   // so nothing downstream changes.
   const [auth, setAuth] = useState({ status: "loading", username: "", role: "student" });
   const [authCard, setAuthCard] = useState(null);     // null | "welcome" | "signin" | "signup"
@@ -82,7 +82,7 @@ export function useGrove() {
   const [authBusy, setAuthBusy] = useState(false);
 
   function applyPerson(id, j, status) {
-    setChild(id);
+    setStudent(id);
     setAuth({ status, username: (j.student && j.student.username) || id, role: (j.student && j.student.role) || "student" });
     setProfile(j.profile && j.profile.grade ? j.profile : null);
     setGroves(Array.isArray(j.groves) ? j.groves : []);
@@ -114,7 +114,7 @@ export function useGrove() {
         }
         if (oautherr) { setAuth({ status: "guest", username: "", role: "student" }); setAuthCard("signin"); return; }
         const q = new URLSearchParams(window.location.search);
-        const name = q.get("student") || q.get("child");
+        const name = q.get("student");
         const id = name ? name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40) : "";
         if (id) {
           const lr = await fetch(`/api/student?student=${encodeURIComponent(id)}`, { cache: "no-store" });
@@ -203,36 +203,36 @@ export function useGrove() {
 
   // Save the grade whenever it changes, once a named student is loaded.
   useEffect(() => {
-    if (!child || !loaded || !profile) return;
-    fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, profile }) }).catch(() => {});
-  }, [profile, child, loaded]);
+    if (!student || !loaded || !profile) return;
+    fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, profile }) }).catch(() => {});
+  }, [profile, student, loaded]);
 
   // Save the open grove's concepts whenever they change (debounced), for a
   // named student only.
   useEffect(() => {
-    if (!child || !loaded || preview || !activeGroveId) return;
+    if (!student || !loaded || preview || !activeGroveId) return;
     setSaveState("saving");
     const t = setTimeout(() => {
-      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id: activeGroveId, name: activeGroveName, concepts }) })
+      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, name: activeGroveName, concepts }) })
         .then((r) => setSaveState(r.ok ? "saved" : "error"))
         .catch(() => setSaveState("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [concepts, child, loaded, preview, activeGroveId, activeGroveName]);
+  }, [concepts, student, loaded, preview, activeGroveId, activeGroveName]);
 
   // The anonymous equivalent: keep the in-memory copy of the open grove in
   // sync as it's edited, so switching away and back doesn't lose the work.
   useEffect(() => {
-    if (child || !activeGroveId || preview) return;
+    if (student || !activeGroveId || preview) return;
     localGroves.current[activeGroveId] = concepts;
-  }, [concepts, child, activeGroveId, preview]);
+  }, [concepts, student, activeGroveId, preview]);
 
   // Opening a grove. For a named student this fetches; for an anonymous
   // session it's an instant local lookup, so it skips the loading screen
   // entirely rather than faking a delay that doesn't exist.
   async function openGrove(id) {
     const entry = groves.find((g) => g.id === id);
-    if (!child) {
+    if (!student) {
       setActiveGroveId(id);
       setActiveGroveName(entry ? entry.name : "");
       setConcepts(localGroves.current[id] || []);
@@ -244,7 +244,7 @@ export function useGrove() {
     setConcepts([]); setGrewIds([]); setSelected(null);
     setScreen("processing");
     try {
-      const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`);
+      const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(student)}`);
       const j = r.ok ? await r.json() : null;
       // A failed load must never fall through to an empty grove: the autosave
       // effect below would then write that empty array back over real data
@@ -264,7 +264,7 @@ export function useGrove() {
   async function createGrove(rawName, seedConcepts) {
     const name = (rawName ?? newGroveName).trim() || "My grove";
     const seed = seedConcepts || [];
-    if (!child) {
+    if (!student) {
       const id = uid();
       localGroves.current[id] = seed;
       setGroves((prev) => [{ id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
@@ -274,7 +274,7 @@ export function useGrove() {
       return id;
     }
     try {
-      const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, name, concepts: seed }) });
+      const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, name, concepts: seed }) });
       const j = r.ok ? await r.json() : null;
       if (!j || !j.id) return null;
       setGroves((prev) => [{ id: j.id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
@@ -290,16 +290,16 @@ export function useGrove() {
     if (!clean) return;
     setGroves((prev) => prev.map((g) => (g.id === id ? { ...g, name: clean } : g)));
     if (id === activeGroveId) setActiveGroveName(clean);
-    if (!child) return;
-    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, id, name: clean }) }).catch(() => {});
+    if (!student) return;
+    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id, name: clean }) }).catch(() => {});
   }
 
   function deleteGrove(id, name) {
     if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
     setGroves((prev) => prev.filter((g) => g.id !== id));
     if (id === activeGroveId) { setActiveGroveId(null); setActiveGroveName(""); setConcepts([]); setGrewIds([]); setSelected(null); }
-    if (!child) { delete localGroves.current[id]; return; }
-    fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(child)}`, { method: "DELETE" }).catch(() => {});
+    if (!student) { delete localGroves.current[id]; return; }
+    fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(student)}`, { method: "DELETE" }).catch(() => {});
   }
 
   // Accepts one photo or several at once (e.g. a multi-page worksheet or a
@@ -418,8 +418,7 @@ export function useGrove() {
     setActiveId(id); setPhase("question"); setChat([]); setBusy(true); setFailed(false);
     const seed = [{ role: "user", content: tutorSeed(c) }];
     try {
-      const text = await callAPI(seed, tutorSystem({ ...(profile || {}), insights }), "tutor");
-      const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
+      const { text, j } = await getTutorReply(seed);
       setApiMsgs([...seed, { role: "assistant", content: text }]);
       setChat([{ who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], correctOption: j.correctOption || "", visual: j.visual || null }]);
       setPhase(j.phase || "question");
@@ -427,6 +426,33 @@ export function useGrove() {
       setChat([{ who: "tutor", text: "I couldn't reach the tutor just now. Tap Try again.", phase: "question" }]);
       setApiMsgs(seed); setFailed(true);
     } finally { setBusy(false); }
+  }
+  // Every non-final turn must leave the student something to act on (a
+  // question, or options). The prompt says so, but a model can still drop it -
+  // same "code guarantees the shape" pattern as parseJSON's recovery and
+  // autoboldQuestion. One re-prompt with a short nudge; if that still comes
+  // back malformed, patch the message with a generic open-ended question
+  // rather than leaving a dead end (never fabricate options here - a fake
+  // option could get graded as a wrong answer against an empty answer key).
+  function isMalformed(j) {
+    if (!j || j.phase === "done") return false;
+    const hasOptions = Array.isArray(j.options) && j.options.length > 0;
+    const hasQuestion = typeof j.message === "string" && j.message.includes("?");
+    return !hasOptions && !hasQuestion;
+  }
+  async function getTutorReply(msgsForApi) {
+    const system = tutorSystem({ ...(profile || {}), insights });
+    const text = await callAPI(msgsForApi, system, "tutor");
+    const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
+    if (!isMalformed(j)) return { text, j };
+    try {
+      const nudge = "(That reply had no question and no options - every non-final turn must leave the student something to act on. Try again with a question.)";
+      const retryText = await callAPI([...msgsForApi, { role: "assistant", content: text }, { role: "user", content: nudge }], system, "tutor");
+      const retryJ = parseJSON(retryText);
+      if (retryJ && !isMalformed(retryJ)) return { text: retryText, j: retryJ };
+    } catch {}
+    const fallbackMsg = (j.message || "").trim() || "Let's keep going.";
+    return { text, j: { ...j, message: `${fallbackMsg}\n\n**What would you like to do next?**`, options: [], correctOption: "" } };
   }
   function updateMastery(id, understanding) {
     setConcepts((prev) => prev.map((c) => {
@@ -459,8 +485,7 @@ export function useGrove() {
     const msgs = [...apiMsgs, { role: "user", content: apiContent }];
     setApiMsgs(msgs); setBusy(true);
     try {
-      const text = await callAPI(msgs, tutorSystem({ ...(profile || {}), insights }), "tutor");
-      const j = parseJSON(text) || { message: text, phase, understanding: "unknown" };
+      const { text, j } = await getTutorReply(msgs);
       // Trust the answer key over the model's own re-judgment if the two ever
       // disagree - the mastery score should never dip on a genuinely correct
       // answer just because the model second-guessed its own stated key.
@@ -475,10 +500,10 @@ export function useGrove() {
         setGrewIds((g) => (g.includes(activeId) ? g : [...g, activeId]));
         // A short, concrete note for next time - saved to the student record, not
         // the grove, since it's about the learner rather than any one concept.
-        if (child && j.reflection) {
+        if (student && j.reflection) {
           const entry = { concept: doneConcept ? doneConcept.name : "", note: j.reflection, at: new Date().toISOString() };
           setInsights((prev) => [...prev, entry].slice(-20));
-          fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: child, insight: entry }) }).catch(() => {});
+          fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, insight: entry }) }).catch(() => {});
         }
       }
     } catch {
@@ -497,5 +522,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setChild, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, subject, topicText, updateMastery, child };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }

@@ -12,7 +12,7 @@ import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, child, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, topicText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -60,15 +60,15 @@ export default function Home({ g }) {
               title={hint} aria-label={hint}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
-              <span className="disp" style={{ fontWeight: 600, fontSize: 19, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{label}</span>
+              <div className="groveHeaderIcon" style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
+              <span className="disp groveHeaderName" style={{ fontWeight: 600, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
               <Icon name={icon} size={15} color={C.stone} strokeWidth={2.4} />
             </button>
           );
         })()}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button onClick={() => setScreen("progress")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="chart" size={15} color={C.primaryDeep} /> Progress</button>
-          <button onClick={() => setScreen("help")} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="help" size={15} color={C.primaryDeep} /> Help</button>
+          <button onClick={() => setScreen("progress")} title="Progress" aria-label="Progress" className="groveHeaderPill" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="chart" size={15} color={C.primaryDeep} /> <span className="groveHeaderPillLabel">Progress</span></button>
+          <button onClick={() => setScreen("help")} title="Help" aria-label="Help" className="groveHeaderPill" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="help" size={15} color={C.primaryDeep} /> <span className="groveHeaderPillLabel">Help</span></button>
           <AccountMenu g={g} />
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function Home({ g }) {
           <Icon name="sprout" size={20} color={C.sageDeep} />
           <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>
             Your grove grew. {grewIds.length} {grewIds.length === 1 ? "tree" : "trees"} stood a little taller.
-            {!child && <>{" "}<button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Save this grove</button></>}
+            {!student && <>{" "}<button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Save this grove</button></>}
           </div>
         </div>
       )}
@@ -166,7 +166,7 @@ export default function Home({ g }) {
                   onChange={(e) => setTopicText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleTopic(); }}
                   placeholder="Photosynthesis, the Krebs cycle, causes of WWI…"
-                  style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 15, outline: "none", fontFamily: "inherit", background: C.bg }}
+                  style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
                 />
                 <button onClick={() => handleTopic()} disabled={!topicText.trim()} aria-label="Break this topic down" style={{ border: "none", cursor: topicText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: topicText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
               </div>
@@ -199,12 +199,12 @@ export default function Home({ g }) {
         )}
 
         <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 22 }}>
-          {preview ? "Sample grove · nothing is being saved" : child ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>sign in</button> to keep your grove</>)}
+          {preview ? "Sample grove · nothing is being saved" : student ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>sign in</button> to keep your grove</>)}
           {has && !preview && <>{" · "}<button onClick={clearGrove} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Clear grove</button></>}
         </p>
         {auth.status === "legacy" && (
           <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
-            You're using a beta link. <button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Create an account</button> with the username <b>{child}</b> to keep these trees.
+            You're using a beta link. <button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Create an account</button> with the username <b>{student}</b> to keep these trees.
           </p>
         )}
       </div>

@@ -3,11 +3,35 @@
 // real Anthropic API key server-side. The browser never sees the key.
 // `kind` ("extract" | "topic" | "tutor") labels the call for the admin usage
 // dashboard - it's stripped before forwarding to Anthropic, not part of the API.
+//
+// System prompt and the last message each carry a cache_control breakpoint, so
+// a multi-turn tutor session gets progressively cheaper as it grows instead of
+// re-billing the whole conversation at full price every turn (5-minute TTL).
+// Adaptive thinking is left at its default (on); max_tokens is raised to 2000
+// to give it room without truncating the JSON reply. Drop to a lower effort
+// only if testing shows thinking tokens crowding out the response.
+function withCacheBreakpoint(content) {
+  const block = typeof content === "string" ? { type: "text", text: content } : { ...content };
+  return { ...block, cache_control: { type: "ephemeral" } };
+}
 export async function callAPI(messages, system, kind) {
+  const cachedMessages = messages.map((m, i) => {
+    if (i !== messages.length - 1) return m;
+    const content = Array.isArray(m.content)
+      ? [...m.content.slice(0, -1), withCacheBreakpoint(m.content[m.content.length - 1])]
+      : [withCacheBreakpoint(m.content)];
+    return { ...m, content };
+  });
   const res = await fetch("/api/anthropic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1000, system, messages, kind }),
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 2000,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      messages: cachedMessages,
+      kind,
+    }),
   });
   if (!res.ok) throw new Error("api " + res.status);
   const data = await res.json();
@@ -104,7 +128,7 @@ export function tutorSystem(profile) {
 
 const TUTOR_BASE = `You are Grove, a warm, upbeat Socratic study coach for a school-age student.
 
-YOUR #1 RULE: never hand over the answer first. Always ask a question and let the student try. If they ask you to "just tell me," gently guide them toward it instead — you are a coach, not an answer key.
+YOUR #1 RULE: never hand over the answer first. Always ask a question and let the student try. If they ask you to "just tell me," gently guide them toward it instead - you are a coach, not an answer key.
 
 FLOW for a single concept:
 1. Ask ONE short, clear question. (phase: "question")
@@ -113,14 +137,17 @@ FLOW for a single concept:
 4. Ask them to say it back in their own words. (phase: "check")
 5. When they show real understanding, celebrate warmly and wrap up. Also set "reflection": one short, concrete, memorable fact about this session - what clicked, what took longer, which approach worked. Not a grade, not a personality trait. (phase: "done")
 
-Aim for roughly 3 to 5 things you ask in total per concept - the opening question and the "check" each count once, a hint doesn't, since it continues the same question rather than asking a new one. Wrap up sooner if they're clearly solid quickly, a bit longer if they need more practice - don't drag past what's actually helping.
+Aim for four to five things you ask in total per concept - the opening question and the "check" each count once, a hint doesn't, since it continues the same question rather than asking a new one. Wrap up sooner if they're clearly solid quickly, a bit longer if they need more practice - don't drag past what's actually helping.
+
+Every turn except "done" must leave the student with something to act on: a question, or options to choose from. Never end a non-final turn on a flat statement with nothing to respond to.
 
 {{TONE}} {{SUBJECT}} {{INTERESTS}} {{HISTORY}}
 
 MESSAGE STYLE - every "message" follows these:
 - Short and age-appropriate. One thing at a time. No lectures.
 - If you lead with a sentence before your actual question, put the question in its own paragraph (a blank line before it) - and bold the question sentence itself, and ONLY that sentence, every single time you ask something: "A poet writes an angry speaker. **What's the safest first conclusion to draw?**" This is not optional and not just for some turns.
-- Bullet lines ("- ") for more than one distinct point. A bold micro-heading (**like this**) only when it truly helps.
+- Bullet lines ("- ") for more than one distinct point. A bold micro-heading (**like this**) only when it truly helps. A single word or short phrase can carry light emphasis with single asterisks (*like this*) when it genuinely helps - sparingly, never on a whole sentence.
+- Never use an em dash (—). Use a comma, a period, or "and"/"but" instead.
 - These are for clarity, not decoration - keep messages short regardless.
 
 OPTIONS - decide this on every turn where you ask or re-ask something:

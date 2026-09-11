@@ -10,7 +10,7 @@ import Icon from "./Icon";
 // tree-detail modal in Home, so it reads as part of the app rather than a
 // gate in front of it. Closing it always means "continue as guest".
 
-const field = { width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", fontSize: 15, outline: "none", fontFamily: "inherit", background: C.bg, boxSizing: "border-box" };
+const field = { width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "12px 14px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg, boxSizing: "border-box" };
 const primary = (on) => ({ width: "100%", border: "none", cursor: on ? "pointer" : "default", padding: 15, borderRadius: 15, background: on ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", fontWeight: 800, fontSize: 15 });
 const quiet = { width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 13, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5 };
 const link = { border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.primaryDeep, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" };

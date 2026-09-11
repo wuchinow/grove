@@ -41,7 +41,7 @@ export default function GroveSwitcher({ g, onClose }) {
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === "Enter") { renameGrove(gr.id, editingName); setEditingId(null); } if (e.key === "Escape") setEditingId(null); }}
                       onBlur={() => { if (editingName.trim()) renameGrove(gr.id, editingName); setEditingId(null); }}
-                      style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 8, padding: "5px 8px", fontSize: 13.5, fontWeight: 800, outline: "none", fontFamily: "inherit", background: C.card }}
+                      style={{ width: "100%", border: `1.5px solid ${C.line}`, borderRadius: 8, padding: "5px 8px", fontSize: 16, fontWeight: 800, outline: "none", fontFamily: "inherit", background: C.card }}
                     />
                   ) : (
                     <>
@@ -72,7 +72,7 @@ export default function GroveSwitcher({ g, onClose }) {
                 onChange={(e) => setNewGroveName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") createGrove(); if (e.key === "Escape") setShowNewGrove(false); }}
                 placeholder="Music theory, Anatomy…"
-                style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontSize: 13, outline: "none", fontFamily: "inherit", background: C.bg }}
+                style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 10, padding: "9px 10px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
               />
               <button onClick={() => createGrove()} disabled={!newGroveName.trim()} style={{ border: "none", cursor: newGroveName.trim() ? "pointer" : "default", padding: "0 13px", borderRadius: 10, background: newGroveName.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", fontWeight: 800, fontSize: 12.5, flexShrink: 0 }}>Add</button>
             </div>

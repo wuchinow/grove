@@ -8,7 +8,7 @@ import Icon from "../components/Icon";
 // A full screen rather than a sheet, so it matches Progress: back top-left, room
 // to read, and no button stranded at the bottom of a scrolling panel.
 export default function Help({ g }) {
-  const { child, profile, setEditingProfile, setScreen, setSetupGrade, setSetupInterests } = g;
+  const { student, profile, setEditingProfile, setScreen, setSetupGrade, setSetupInterests } = g;
 
   const Step = ({ title, children }) => (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "14px 16px", boxShadow: "0 3px 12px rgba(58,42,32,.05)" }}>
@@ -35,7 +35,7 @@ export default function Help({ g }) {
             Type a topic, or photograph your notes, a worksheet, or a textbook page. Grove pulls out the key ideas and plants a tree for each one.
           </Step>
           <Step title="2. Tend a tree">
-            Tap any tree to start a session: one concept, about 3 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
+            Tap any tree to start a session: one concept, about 4 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
           </Step>
           <Step title="3. Finish to grow it">
             Every completed session makes that tree one stage taller: seedling, sprouting, sapling, young tree, full grown, towering. Five sessions gets it to full size.
@@ -53,7 +53,7 @@ export default function Help({ g }) {
 
         <div style={{ flex: 1, minHeight: 20 }} />
 
-        {child && profile && (
+        {student && profile && (
           <button onClick={() => {
             setSetupGrade(profile.grade || "");
             const existing = Array.isArray(profile.interests) ? profile.interests : [];

@@ -14,7 +14,7 @@ export default function App() {
   const g = useGrove();
 
   // Setup comes first for a named grove that has no grade yet, or is editing it.
-  if (g.child && g.loaded && (!g.profile || g.editingProfile)) return <Setup g={g} />;
+  if (g.student && g.loaded && (!g.profile || g.editingProfile)) return <Setup g={g} />;
   if (g.screen === "home") return <Home g={g} />;
   if (g.screen === "progress") return <Progress g={g} />;
   if (g.screen === "help") return <Help g={g} />;

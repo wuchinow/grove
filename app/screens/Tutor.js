@@ -33,34 +33,46 @@ function autoboldQuestion(text) {
   return before + leadWs + "**" + trimmed + "**" + after;
 }
 
+// Single-asterisk emphasis, applied only to the plain-text spans left after
+// **bold** has already been split out. \S+ can't cross a space, so "3*4 and
+// 5*6" never gets treated as *4 and 5* - only a genuine single, unspaced
+// *word* is matched.
+function emphasize(s, key) {
+  const parts = s.split(/\*(\S+?)\*/g);
+  return parts.map((part, i) => (i % 2 === 1 ? <em key={`${key}-em-${i}`}>{part}</em> : part));
+}
+
 // Turns a tutor message's lightweight formatting into React nodes: blank-line
-// paragraphs, "- " bullets, and **bold**. No markdown library - the tutor
-// prompt only ever needs these three, so a tiny parser keeps this dependency-free.
+// paragraphs, "- " bullets, **bold**, and light *emphasis*. No markdown
+// library - the tutor prompt only ever needs these, so a tiny parser keeps
+// this dependency-free.
+function formatInline(s, key) {
+  const boldParts = s.split(/\*\*(.+?)\*\*/g);
+  return boldParts.flatMap((part, i) =>
+    i % 2 === 1 ? [<strong key={`${key}-b-${i}`}>{part}</strong>] : emphasize(part, `${key}-${i}`)
+  );
+}
 function renderMessage(rawText) {
   const text = autoboldQuestion(rawText);
-  const bold = (s, key) => {
-    const parts = s.split(/\*\*(.+?)\*\*/g);
-    return parts.map((part, i) => (i % 2 === 1 ? <strong key={`${key}-${i}`}>{part}</strong> : part));
-  };
   const blocks = text.split(/\n\s*\n/);
   return blocks.map((block, bi) => {
     const lines = block.split("\n").filter((l) => l.trim());
-    const isList = lines.length > 0 && lines.every((l) => /^[-\u2022]\s+/.test(l.trim()));
+    const isList = lines.length > 0 && lines.every((l) => /^[-•]\s+/.test(l.trim()));
     if (isList) {
       return (
         <ul key={bi} style={{ margin: bi === 0 ? 0 : "10px 0 0", padding: 0, listStyle: "none" }}>
           {lines.map((l, li) => (
-            <li key={li} style={{ marginTop: li === 0 ? 0 : 4, paddingLeft: 16, position: "relative" }}>
+            <li key={li} style={{ marginTop: li === 0 ? 0 : 4, paddingLeft: 16, position: "relative", overflowWrap: "anywhere" }}>
               <span style={{ position: "absolute", left: 0, color: C.primary }}>&bull;</span>
-              {bold(l.trim().replace(/^[-\u2022]\s+/, ""), `${bi}-${li}`)}
+              {formatInline(l.trim().replace(/^[-•]\s+/, ""), `${bi}-${li}`)}
             </li>
           ))}
         </ul>
       );
     }
     return (
-      <div key={bi} style={{ marginTop: bi === 0 ? 0 : 10 }}>
-        {bold(block, `${bi}`)}
+      <div key={bi} style={{ marginTop: bi === 0 ? 0 : 10, overflowWrap: "anywhere" }}>
+        {formatInline(block, `${bi}`)}
       </div>
     );
   });
@@ -79,7 +91,7 @@ function busyLabel(chat, active) {
 // pattern (and the "always move forward, never look broken" rule) is the
 // same one adaptive tests use: show completed, current, and an *estimated*
 // stretch ahead, and let the estimate extend rather than cap out if the
-// session runs long. SOFT_TARGET mirrors the "roughly 3 to 5" the tutor
+// session runs long. SOFT_TARGET mirrors the "four to five" the tutor
 // prompt is actually instructed to aim for, so the bar and the model's real
 // behavior are describing the same number instead of two different guesses.
 const SOFT_TARGET = 4;
@@ -114,55 +126,135 @@ function ProgressBar({ chat, phase }) {
   );
 }
 
+// Tracks the real visible viewport on iOS Safari, where the keyboard shrinks
+// window.innerHeight's usable area without firing a resize the way 100dvh
+// alone can react to in time. Falls back to null (letting the .fullvh CSS
+// class's 100dvh do the work) wherever visualViewport isn't available.
+function useVisualViewportHeight() {
+  const [h, setH] = React.useState(null);
+  React.useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const update = () => setH(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, []);
+  return h;
+}
+
+// The controls for the live turn: answer options (if any) plus the always-
+// available Hint / "I don't know" escape hatches. Lives in the scroll area
+// right under the tutor's message, not the fixed footer - the footer is just
+// the typing input now.
+function TurnControls({ opts, busy, send }) {
+  const twoUp = opts.length === 2;
+  return (
+    <div style={{ marginTop: 10, maxWidth: "86%", marginLeft: 38 }}>
+      {opts.length > 0 && (
+        <div style={{ display: twoUp ? "flex" : "block", gap: 8 }}>
+          {opts.map((o, i) => (
+            <button key={i} onClick={() => send(o)} disabled={busy} style={{ display: "block", width: "100%", marginBottom: twoUp ? 0 : 8, flex: twoUp ? 1 : undefined, border: `1.5px solid ${C.line}`, background: C.card, borderRadius: 14, padding: "13px 15px", fontWeight: 700, fontSize: 15, color: C.ink, textAlign: twoUp ? "center" : "left", cursor: busy ? "default" : "pointer", overflowWrap: "anywhere" }}>{o}</button>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 18, marginTop: opts.length ? 10 : 4, justifyContent: opts.length ? "center" : "flex-start" }}>
+        <button onClick={() => send("Can I get a hint?")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.primaryDeep, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>Hint</button>
+        <button onClick={() => send("I don't know")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.sub, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>I don't know</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Tutor({ g }) {
   const { active, activeId, busy, chat, failed, input, leaveSession, nextConcept, phase, queue, scrollRef, send, sessionPos, sessionTotal, setInput, startConcept } = g;
-    const done = phase === "done";
-    const lastTutor = [...chat].reverse().find((m) => m.who === "tutor");
-    const opts = !done && !busy && lastTutor && Array.isArray(lastTutor.options) ? lastTutor.options : [];
-    const twoUp = opts.length === 2;
-    return (
-      <Shell>
-        <div className="fullvh" style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "14px 18px 12px", background: C.card, borderBottom: `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <button onClick={leaveSession} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>← Back to my grove</button>
-              <div style={{ color: C.sub, fontSize: 13, fontWeight: 700, textAlign: "right" }}>
-                <div>Tree {sessionPos.current + 1} of {sessionTotal.current}</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ background: C.bg, borderRadius: 12, padding: 2 }}><Tree days={active ? active.days : 0} mastery={active ? active.mastery : 0} width={44} /></div>
-              <div style={{ flex: 1 }}>
-                <div className="disp" style={{ fontSize: 18, fontWeight: 600 }}>{active ? active.name : ""}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginTop: 2 }}>
-                  {active ? `${growthLabel(active.days, active.mastery)} · ${statusOf(active.mastery)}` : ""}
-                </div>
-              </div>
-            </div>
-            <ProgressBar chat={chat} phase={phase} />
-          </div>
+  const done = phase === "done";
+  const lastTutor = [...chat].reverse().find((m) => m.who === "tutor");
+  const lastIsLiveTurn = chat.length > 0 && chat[chat.length - 1].who === "tutor" && !done;
+  const opts = lastIsLiveTurn && Array.isArray(lastTutor.options) ? lastTutor.options : [];
+  const vvh = useVisualViewportHeight();
+  const lastTutorRef = React.useRef(null);
+  const [showMore, setShowMore] = React.useState(false);
 
-          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-            {chat.map((m, i) =>
-              m.who === "tutor" ? (
-                <div key={i} className="fadeUp" style={{ alignSelf: "flex-start", maxWidth: "86%", display: "flex", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
-                  <div style={{ background: C.card, padding: "12px 14px", borderRadius: "4px 16px 16px 16px", boxShadow: "0 3px 10px rgba(58,42,32,.06)", fontSize: 15, lineHeight: 1.45 }}>
-                    {m.phase && m.phase !== "question" && m.phase !== "done" && (
-                      <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.primary, marginBottom: 4 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
-                    )}
-                    {m.visual && m.visual.type === "staff" && (
-                      <div style={{ marginBottom: 8 }}>
-                        <StaffNotation clef={m.visual.clef} notes={m.visual.notes || []} />
-                      </div>
-                    )}
-                    {renderMessage(m.text)}
+  const checkMore = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) { setShowMore(false); return; }
+    setShowMore(el.scrollHeight - el.scrollTop - el.clientHeight > 24);
+  }, [scrollRef]);
+
+  // New tutor reply: bring its top edge under the header. Busy (typing
+  // dots) or the student's own turn: keep the bottom in view, same as before.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      const last = chat[chat.length - 1];
+      if (!busy && last && last.who === "tutor" && lastTutorRef.current) {
+        el.scrollTop = Math.max(0, lastTutorRef.current.offsetTop - 8);
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
+      checkMore();
+    });
+  }, [chat, busy, checkMore]);
+
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkMore, { passive: true });
+    window.addEventListener("resize", checkMore);
+    return () => { el.removeEventListener("scroll", checkMore); window.removeEventListener("resize", checkMore); };
+  }, [checkMore]);
+
+  return (
+    <Shell>
+      <div className="fullvh" style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 600, height: vvh ? `${vvh}px` : undefined, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "14px 18px 12px", background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button onClick={leaveSession} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>← Back to my grove</button>
+            <div style={{ color: C.sub, fontSize: 13, fontWeight: 700, textAlign: "right" }}>
+              <div>Tree {sessionPos.current + 1} of {sessionTotal.current}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: C.bg, borderRadius: 12, padding: 2 }}><Tree days={active ? active.days : 0} mastery={active ? active.mastery : 0} width={44} /></div>
+            <div style={{ flex: 1 }}>
+              <div className="disp" style={{ fontSize: 18, fontWeight: 600 }}>{active ? active.name : ""}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginTop: 2 }}>
+                {active ? `${growthLabel(active.days, active.mastery)} · ${statusOf(active.mastery)}` : ""}
+              </div>
+            </div>
+          </div>
+          <ProgressBar chat={chat} phase={phase} />
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+          <div ref={scrollRef} style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {chat.map((m, i) => {
+              const isLastTutor = i === chat.length - 1 && m.who === "tutor";
+              return m.who === "tutor" ? (
+                <div key={i} ref={isLastTutor ? lastTutorRef : null}>
+                  <div className="fadeUp" style={{ alignSelf: "flex-start", maxWidth: "86%", display: "flex", gap: 8 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
+                    <div style={{ background: C.card, padding: "12px 14px", borderRadius: "4px 16px 16px 16px", boxShadow: "0 3px 10px rgba(58,42,32,.06)", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere", minWidth: 0 }}>
+                      {m.phase && m.phase !== "question" && m.phase !== "done" && (
+                        <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.primary, marginBottom: 4 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
+                      )}
+                      {m.visual && m.visual.type === "staff" && (
+                        <div style={{ marginBottom: 8 }}>
+                          <StaffNotation clef={m.visual.clef} notes={m.visual.notes || []} />
+                        </div>
+                      )}
+                      {renderMessage(m.text)}
+                    </div>
                   </div>
+                  {isLastTutor && !busy && !done && <TurnControls opts={opts} busy={busy} send={send} />}
                 </div>
               ) : (
-                <div key={i} className="fadeUp" style={{ alignSelf: "flex-end", maxWidth: "86%", background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", padding: "12px 14px", borderRadius: "16px 4px 16px 16px", fontSize: 15, lineHeight: 1.45 }}>{m.text}</div>
-              )
-            )}
+                <div key={i} className="fadeUp" style={{ alignSelf: "flex-end", maxWidth: "86%", background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", padding: "12px 14px", borderRadius: "16px 4px 16px 16px", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere" }}>{m.text}</div>
+              );
+            })}
             {busy && (
               <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "center" }}>
                 <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center" }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
@@ -177,42 +269,33 @@ export default function Tutor({ g }) {
               </div>
             )}
           </div>
-
-          <div style={{ padding: "12px 14px", paddingBottom: "max(16px, env(safe-area-inset-bottom))", background: C.card, borderTop: `1px solid ${C.line}` }}>
-            {failed ? (
-              <button onClick={() => startConcept(activeId)} style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16 }}>
-                Try again
-              </button>
-            ) : done ? (
-              <button onClick={nextConcept} className="pop" style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16, boxShadow: "0 8px 20px rgba(120,66,37,.36)" }}>
-                {queue.length > 1 ? "Next tree" : "Back to my grove"}
-              </button>
-            ) : opts.length ? (
-              <>
-                <div style={{ display: twoUp ? "flex" : "block", gap: 8 }}>
-                  {opts.map((o, i) => (
-                    <button key={i} onClick={() => send(o)} disabled={busy} style={{ display: "block", width: "100%", marginBottom: twoUp ? 0 : 8, flex: twoUp ? 1 : undefined, border: `1.5px solid ${C.line}`, background: C.bg, borderRadius: 14, padding: "13px 15px", fontWeight: 700, fontSize: 15, color: C.ink, textAlign: twoUp ? "center" : "left", cursor: busy ? "default" : "pointer" }}>{o}</button>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 18, marginTop: 10, justifyContent: "center" }}>
-                  <button onClick={() => send("Can I get a hint?")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.primaryDeep, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>Hint</button>
-                  <button onClick={() => send("I don't know")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.sub, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>I don't know</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Type your answer…" disabled={busy} style={{ flex: 1, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 15, outline: "none", fontFamily: "inherit", background: C.bg }} />
-                  <button onClick={() => send()} disabled={busy || !input.trim()} style={{ border: "none", cursor: busy || !input.trim() ? "default" : "pointer", width: 50, borderRadius: 14, background: input.trim() && !busy ? C.primary : C.line, color: "#FCEFE4", fontSize: 20, fontWeight: 800, display: "grid", placeItems: "center" }} aria-label="Send"><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
-                </div>
-                <div style={{ display: "flex", gap: 18, marginTop: 10, justifyContent: "center" }}>
-                  <button onClick={() => send("Can I get a hint?")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.primaryDeep, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>Hint</button>
-                  <button onClick={() => send("I don't know")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.sub, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>I don't know</button>
-                </div>
-              </>
-            )}
-          </div>
+          {showMore && (
+            <button
+              onClick={() => { const el = scrollRef.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }}
+              style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 999, background: C.ink, color: C.card, fontWeight: 800, fontSize: 12, boxShadow: "0 6px 16px rgba(40,24,12,.28)", display: "flex", alignItems: "center", gap: 5 }}
+            >
+              More <Icon name="chevronDown" size={12} color={C.card} strokeWidth={3} />
+            </button>
+          )}
         </div>
-      </Shell>
-    );
+
+        <div style={{ padding: "12px 14px", paddingBottom: "max(16px, env(safe-area-inset-bottom))", background: C.card, borderTop: `1px solid ${C.line}`, flexShrink: 0 }}>
+          {failed ? (
+            <button onClick={() => startConcept(activeId)} style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16 }}>
+              Try again
+            </button>
+          ) : done ? (
+            <button onClick={nextConcept} className="pop" style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16, boxShadow: "0 8px 20px rgba(120,66,37,.36)" }}>
+              {queue.length > 1 ? "Next tree" : "Back to my grove"}
+            </button>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Type your answer…" disabled={busy} style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }} />
+              <button onClick={() => send()} disabled={busy || !input.trim()} style={{ border: "none", cursor: busy || !input.trim() ? "default" : "pointer", width: 50, flexShrink: 0, borderRadius: 14, background: input.trim() && !busy ? C.primary : C.line, color: "#FCEFE4", fontSize: 20, fontWeight: 800, display: "grid", placeItems: "center" }} aria-label="Send"><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
+            </div>
+          )}
+        </div>
+      </div>
+    </Shell>
+  );
 }

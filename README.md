@@ -50,7 +50,7 @@ so only the service role can read or write. Migrations live in `supabase/migrati
 - `app/page.js` is a router; `app/lib/useGrove.js` owns all client state; one
   file per screen under `app/screens/`.
 - `app/api/anthropic/route.js` is the server proxy for the Anthropic key. Model
-  is `claude-haiku-4-5-20251001`, set in `app/lib/ai.js`.
+  is `claude-sonnet-5`, set in `app/lib/ai.js`.
 - Three AI calls, all through the proxy: concept extraction from a photo,
   typed-topic breakdown, and the tutor turn. The whole conversation is resent
   each turn. The tutor returns `{ message, phase, understanding, options,
@@ -60,7 +60,6 @@ so only the service role can read or write. Migrations live in `supabase/migrati
 
 - **No password reset yet.** Ask David.
 - **No spaced repetition yet.** "Next review" labels are placeholders.
-- **No per-turn logging yet.** Only end state (mastery, insights) is stored.
 - **No COPPA-specific handling yet.** Fine for family and friends, not for
   distribution beyond that.
 
