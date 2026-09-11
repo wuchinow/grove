@@ -48,26 +48,29 @@ export function parseJSON(text) {
   if (s === -1 || e === -1) return null;
   const body = t.slice(s, e + 1);
   try { return JSON.parse(body); } catch {}
-  // The model sometimes leaves unescaped quotes inside "message", which breaks
-  // JSON.parse. Recover the fields by position instead of showing raw JSON to a kid.
-  const between = (startKey, endKey) => {
-    const a = body.indexOf(startKey);
-    if (a === -1) return null;
-    const from = a + startKey.length;
-    const b = body.indexOf(endKey, from);
-    return b === -1 ? null : body.slice(from, b);
+  // The model sometimes leaves a raw newline or an unescaped quote inside
+  // "message", which breaks JSON.parse, and it doesn't always emit compact
+  // zero-space JSON (a space after a comma or colon is legal JSON but broke
+  // the old literal-substring lookup below). Recover the fields by position -
+  // tolerant of that whitespace - instead of showing raw JSON to a kid.
+  const between = (startRe, endRe) => {
+    const sm = body.match(startRe);
+    if (!sm) return null;
+    const from = sm.index + sm[0].length;
+    const em = body.slice(from).match(endRe);
+    return em ? body.slice(from, from + em.index) : null;
   };
-  let message = between('"message":"', '","phase"');
+  let message = between(/"message"\s*:\s*"/, /"\s*,\s*"phase"/);
   if (!message) return null;
   message = message.replace(/\\n/g, "\n").replace(/\\"/g, '"');
   const pickOne = (key, allowed, dflt) => {
-    const v = between('"' + key + '":"', '"');
+    const v = between(new RegExp('"' + key + '"\\s*:\\s*"'), /"/);
     return allowed.includes(v) ? v : dflt;
   };
   const phase = pickOne("phase", ["question", "hint", "explain", "check", "done"], "question");
   const understanding = pickOne("understanding", ["unknown", "struggling", "partial", "solid"], "unknown");
   let options = [];
-  const raw = between('"options":[', "]");
+  const raw = between(/"options"\s*:\s*\[/, /\]/);
   if (raw && raw.trim()) {
     try { options = JSON.parse("[" + raw + "]"); } catch { options = raw.split(",").map((x) => x.trim().replace(/^"|"$/g, "")).filter(Boolean); }
   }
