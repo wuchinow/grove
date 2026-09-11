@@ -53,6 +53,12 @@ export default function Icon({ name, size = 20, color = "currentColor", strokeWi
   if (name === "dollar") return (
     <svg {...common}><path d="M12 3v18" /><path d="M16 7.5c0-1.7-1.8-3-4-3s-4 1.2-4 3 1.8 2.6 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3" /></svg>
   );
+  if (name === "file") return (
+    <svg {...common}><path d="M7 3.5h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z" /><path d="M14 3.5V8h4" /></svg>
+  );
+  if (name === "link") return (
+    <svg {...common}><path d="M9.5 14.5 14.5 9.5" /><path d="M11 7.5l1.4-1.4a3.5 3.5 0 0 1 5 5L16 12.5" /><path d="M13 16.5l-1.4 1.4a3.5 3.5 0 0 1-5-5L8 11.5" /></svg>
+  );
   if (name === "gear") return (
     <svg {...common}><circle cx="12" cy="12" r="3.2" /><path d="M12 3.5v2.4M12 18.1v2.4M20.5 12h-2.4M5.9 12H3.5M17.7 6.3l-1.7 1.7M8 16l-1.7 1.7M17.7 17.7 16 16M8 8 6.3 6.3" /></svg>
   );

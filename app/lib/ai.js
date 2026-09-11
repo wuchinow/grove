@@ -69,6 +69,14 @@ export function parseJSON(text) {
   }
   return { message, phase, understanding, options };
 }
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read"));
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.readAsDataURL(file);
+  });
+}
 export function fileToImage(file, maxDim = 1200) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -180,6 +188,59 @@ Break it into the seven concepts most worth learning, ordered so earlier ones bu
 
 Respond with ONLY JSON, no markdown:
 {"subject":"<the topic, tidied up>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
+
+// ---- Document pipeline ------------------------------------------------------
+// Shared by every non-photo, non-typed-topic source (PDF, DOCX, TXT, URL):
+// text is extracted server-side first (see /api/extract-file), and only that
+// text is ever sent to the model - never the original file.
+
+// Below this many characters, the whole document goes straight to concept
+// extraction. Above it, the student picks a section first (see splitParagraphs
+// and SECTIONS_PROMPT below) so a long source doesn't get skimmed shallowly
+// or blow past a reasonable request size.
+export const DIRECT_TEXT_MAX = 6000;
+
+export const DOCUMENT_SYSTEM = `You read the text of a document a student uploaded (a PDF, Word document, text file, or web page) and pull out the key concepts they need to learn from it.`;
+export const DOCUMENT_PROMPT = (text) => `Identify the seven most important concepts to study from this document. Respond with ONLY JSON, no markdown:
+{"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}
+
+DOCUMENT:
+"""
+${text}
+"""`;
+
+// Splits text into paragraphs (blank-line-separated blocks) and returns each
+// with its own exact [start,end) offset into the original string, found via
+// regex match positions rather than computed by hand - so a slice picked
+// later is a real character range, never a guess. "Code guarantees the
+// shape": the model below only ever names paragraph indices, never offsets.
+export function splitParagraphs(text) {
+  const paras = [];
+  const re = /[^\n][^\n]*(?:\n[^\n]+)*/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const t = m[0].trim();
+    if (t) paras.push({ start: m.index, end: m.index + m[0].length, text: t });
+  }
+  return paras;
+}
+
+export const SECTIONS_SYSTEM = `You look at a long document broken into indexed paragraphs and group them into a handful of clearly-titled sections a student could study one at a time.`;
+export function SECTIONS_PROMPT(paras) {
+  const listing = paras.map((p, i) => `[${i}] ${p.text}`).join("\n\n");
+  return `Group these paragraphs into 3 to 8 sections a student could study one at a time, in document order, covering every paragraph with no gaps or overlaps. Respond with ONLY JSON, no markdown:
+{"subject":"<subject or topic>","sections":[{"title":"<short section title>","note":"<one line on what it covers>","firstParagraph":<index>,"lastParagraph":<index>}]}
+
+PARAGRAPHS:
+${listing}`;
+}
+
+// A scanned/image-only PDF (no text layer) degrades to this: sent to the
+// model as a native document block, exactly like a photo - read once, never
+// stored, no sources row.
+export const SCAN_SYSTEM = `You look at a document image (a scanned page with no selectable text) and pull out the key concepts a student needs to learn from it.`;
+export const SCAN_PROMPT = `Identify the seven most important concepts to study from this document. Respond with ONLY JSON, no markdown:
+{"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
 
 export const SAMPLE = {
   subject: "Biology - Photosynthesis",

@@ -12,7 +12,7 @@ import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleShare, handleTopic, handleUrl, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, setUrlText, startPreview, startSession, studyEverything, student, topicText, urlText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -137,7 +137,7 @@ export default function Home({ g }) {
           ) : (
             <>
               <div className="disp" style={{ fontSize: 18, fontWeight: 600, color: C.ink }}>A quiet, empty grove</div>
-              <div style={{ fontSize: 13, color: C.sub, fontWeight: 700, marginTop: 4, lineHeight: 1.5, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add a photo of what you're studying. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
+              <div style={{ fontSize: 13, color: C.sub, fontWeight: 700, marginTop: 4, lineHeight: 1.5, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
             </>
           )}
         </div>
@@ -183,14 +183,31 @@ export default function Home({ g }) {
               </div>
 
               <button onClick={() => fileRef.current && fileRef.current.click()} style={{ width: "100%", border: `1.5px solid ${C.line}`, cursor: "pointer", textAlign: "left", padding: "13px 14px", borderRadius: 14, background: C.bg, color: C.ink, display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="camera" size={18} color={C.primaryDeep} /></span>
+                <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="file" size={18} color={C.primaryDeep} /></span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Share your work</span>
-                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Notes, a worksheet, or several pages at once</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Photos, PDFs, Word docs, text files, or a web page</span>
                 </span>
               </button>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFile} style={{ display: "none" }} />
+            <input ref={fileRef} type="file" accept="image/*,.pdf,.docx,.txt,text/plain,application/pdf" multiple onChange={handleShare} style={{ display: "none" }} />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "13px 2px 12px" }}>
+              <div style={{ flex: 1, height: 1, background: C.line }} />
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.stone, letterSpacing: ".06em" }}>OR</div>
+              <div style={{ flex: 1, height: 1, background: C.line }} />
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={urlText}
+                onChange={(e) => setUrlText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleUrl(); }}
+                placeholder="Paste a URL"
+                style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
+              />
+              <button onClick={() => handleUrl()} disabled={!urlText.trim()} aria-label="Read this page" style={{ border: "none", cursor: urlText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: urlText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="link" size={18} color="#FCEFE4" /></button>
+            </div>
 
             {!has && !hideSample && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>

@@ -9,6 +9,7 @@ import Progress from "./screens/Progress";
 import Help from "./screens/Help";
 import Processing from "./screens/Processing";
 import Confirm from "./screens/Confirm";
+import Sections from "./screens/Sections";
 import Tutor from "./screens/Tutor";
 import Play from "./screens/Play";
 import FeedbackCard from "./components/FeedbackCard";
@@ -32,6 +33,7 @@ export default function App() {
     : g.screen === "help" ? <Help g={g} />
     : g.screen === "processing" ? <Processing g={g} />
     : g.screen === "confirm" ? <Confirm g={g} />
+    : g.screen === "sections" ? <Sections g={g} />
     : g.screen === "tutor" ? <Tutor g={g} />
     : g.screen === "play" ? <Play g={g} />
     : null;

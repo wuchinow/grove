@@ -32,7 +32,7 @@ export default function Help({ g }) {
 
         <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <Step title="1. Add what you're studying">
-            Type a topic, or photograph your notes, a worksheet, or a textbook page. Grove pulls out the key ideas and plants a tree for each one.
+            Type a topic, or share photos, PDFs, Word docs, text files, or a web page. Grove pulls out the key ideas and plants a tree for each one.
           </Step>
           <Step title="2. Tend a tree">
             Tap any tree to start a session: one concept, about 4 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
@@ -46,8 +46,8 @@ export default function Help({ g }) {
           <Step title="No streaks, no daily quota">
             Do six sessions today and none tomorrow. The grove just reflects the work you've done.
           </Step>
-          <Step title="Your photos aren't stored">
-            They're read once to find the concepts, then discarded.
+          <Step title="Your original files aren't kept">
+            Photos are read once to find the concepts, then discarded. For a document or a link, we keep the text we pulled out (never the original file) so you can come back and study a different part of it later.
           </Step>
         </div>
 

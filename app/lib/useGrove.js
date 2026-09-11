@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { callAPI, parseJSON, fileToImage, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, SAMPLE, uid } from "./ai";
+import { callAPI, parseJSON, fileToImage, fileToBase64, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, DOCUMENT_SYSTEM, DOCUMENT_PROMPT, DIRECT_TEXT_MAX, splitParagraphs, SECTIONS_SYSTEM, SECTIONS_PROMPT, SCAN_SYSTEM, SCAN_PROMPT, SAMPLE, uid } from "./ai";
 import { soundEnabled, playMiss, playSolid, playSessionComplete } from "./sound";
 
 // ---- useGrove --------------------------------------------------------------
@@ -39,7 +39,17 @@ export function useGrove() {
   const [setupAvatar, setSetupAvatar] = useState(""); // data URL, seeded from profile.avatar when editing
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
-  const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic", drives Processing's copy
+  const [urlText, setUrlText] = useState("");
+  const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic" | "pdf" | "docx" | "txt" | "url", drives Processing's copy
+  const [processingStage, setProcessingStage] = useState(""); // "" | "reading" | "structuring" | "extracting", Processing's long-wait caption for document sources
+  const [sections, setSections] = useState([]); // [{title, note, start, end}] for the Sections screen, a long document's picked slice
+  // pendingSource: the {text (full), kind, filename, start, end} to persist as
+  // this grove's founding source once confirmConcepts creates it - null for
+  // photos, typed topics, and the scanned-PDF fallback (nothing to persist).
+  const pendingSource = useRef(null);
+  // docRef: the full text + kind/filename of a long document while its
+  // Sections screen is up, so picking one can slice locally without a resend.
+  const docRef = useRef(null);
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
   const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName }, parked during a preview
 
@@ -268,7 +278,7 @@ export function useGrove() {
   // Creates a grove (empty, or seeded with concepts already extracted) and
   // makes it the open one. Returns the new id, or null on failure. For an
   // anonymous session this always succeeds and never touches the network.
-  async function createGrove(rawName, seedConcepts) {
+  async function createGrove(rawName, seedConcepts, source) {
     const name = (rawName ?? newGroveName).trim() || "My grove";
     const seed = seedConcepts || [];
     if (!student) {
@@ -281,7 +291,12 @@ export function useGrove() {
       return id;
     }
     try {
-      const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, name, concepts: seed }) });
+      const body = { student, name, concepts: seed };
+      if (source && source.id) {
+        body.source_id = source.id;
+        if (Number.isInteger(source.start) && Number.isInteger(source.end)) { body.source_start = source.start; body.source_end = source.end; }
+      }
+      const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = r.ok ? await r.json() : null;
       if (!j || !j.id) return null;
       setGroves((prev) => [{ id: j.id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
@@ -317,6 +332,7 @@ export function useGrove() {
     const files = e.target.files ? Array.from(e.target.files).slice(0, 6) : [];
     if (!files.length) return;
     const multi = files.length > 1;
+    pendingSource.current = null; docRef.current = null;
     setError(""); setSourceMode("photo"); setScreen("processing");
     try {
       const images = await Promise.all(files.map((f) => fileToImage(f)));
@@ -343,6 +359,7 @@ export function useGrove() {
   async function handleTopic(raw) {
     const topic = (raw ?? topicText).trim();
     if (!topic) return;
+    pendingSource.current = null; docRef.current = null;
     setError(""); setTopicText(""); setSourceMode("topic"); setScreen("processing");
     try {
       const text = await callAPI(
@@ -358,6 +375,168 @@ export function useGrove() {
     } catch {
       setError("I couldn't break that topic down. Try naming it a little differently.");
       setScreen("home");
+    }
+  }
+
+  // Dispatched from the one "Share your work" file input, which now accepts
+  // photos alongside PDF/DOCX/TXT: an all-image selection keeps the existing
+  // multi-page photo flow, anything else is a single document.
+  function handleShare(e) {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (!files.length) return;
+    if (files.every((f) => f.type.startsWith("image/"))) { handleFile(e); return; }
+    handleDocument(files[0]);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  const MAX_DOC_BYTES = 20 * 1024 * 1024;
+
+  function docKindOf(file) {
+    const ext = (file.name || "").toLowerCase().split(".").pop();
+    if (file.type === "application/pdf" || ext === "pdf") return "pdf";
+    if (ext === "docx" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "docx";
+    return "txt";
+  }
+
+  // PDF/DOCX/TXT: every format becomes plain text before any model call.
+  // TXT is read client-side; PDF and DOCX round-trip through
+  // /api/extract-file, which extracts text server-side and never sends the
+  // original file to the model unless the PDF has no text layer at all (see
+  // handlePdfFallback).
+  async function handleDocument(file) {
+    if (!file) return;
+    pendingSource.current = null; docRef.current = null;
+    if (file.size > MAX_DOC_BYTES) { setError("That file is too large. Try something smaller."); return; }
+    const kind = docKindOf(file);
+    const name = file.name || "";
+    setError(""); setSourceMode(kind); setScreen("processing"); setProcessingStage("reading");
+    try {
+      let text;
+      if (kind === "txt") {
+        text = (await file.text()).trim();
+        if (!text) throw new Error("I couldn't find any text in that file.");
+      } else {
+        const b64 = await fileToBase64(file);
+        const r = await fetch("/api/extract-file", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, data: b64 }) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) throw new Error((j && j.error) || "I couldn't read that file. Try again.");
+        if (kind === "pdf" && j.fallback) { await handlePdfFallback(b64); return; }
+        text = (j.text || "").trim();
+        if (!text) throw new Error("I couldn't find any text in that file.");
+      }
+      await proceedWithText(text, kind, name);
+    } catch (e) {
+      setError(e.message || "I couldn't read that file. Try again.");
+      setScreen("home"); setProcessingStage("");
+    }
+  }
+
+  // Plain web URLs: fetched and stripped to text server-side (see
+  // /api/extract-file), same pipeline from there on as any other document.
+  async function handleUrl(raw) {
+    const url = (raw ?? urlText).trim();
+    if (!url) return;
+    pendingSource.current = null; docRef.current = null;
+    setError(""); setUrlText(""); setSourceMode("url"); setScreen("processing"); setProcessingStage("reading");
+    try {
+      const r = await fetch("/api/extract-file", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "url", url }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error((j && j.error) || "Couldn't reach that page. Check the link and try again.");
+      const text = (j.text || "").trim();
+      if (!text) throw new Error("That page didn't have readable text to pull from.");
+      await proceedWithText(text, "url", url);
+    } catch (e) {
+      setError(e.message || "Couldn't reach that page. Check the link and try again.");
+      setScreen("home"); setProcessingStage("");
+    }
+  }
+
+  // A scanned PDF has no text layer: degrade to exactly the photo path, sent
+  // to the model as a native document content block. Nothing is persisted -
+  // no sources row, no source_id - same promise as a photo.
+  async function handlePdfFallback(b64) {
+    setProcessingStage("extracting");
+    try {
+      const content = [
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } },
+        { type: "text", text: SCAN_PROMPT },
+      ];
+      const text = await callAPI([{ role: "user", content }], SCAN_SYSTEM, "extract");
+      const parsed = parseJSON(text);
+      if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
+      setSubject(parsed.subject || "Your document");
+      setPending(parsed.concepts.slice(0, 7));
+      pendingSource.current = null;
+      setScreen("confirm");
+    } catch {
+      setError("I couldn't read that PDF clearly. Try a text-based PDF, or a photo of it instead.");
+      setScreen("home");
+    } finally {
+      setProcessingStage("");
+    }
+  }
+
+  // The uniform direct-vs-structure decision, in code: a single character
+  // threshold, applied identically no matter which of the four formats the
+  // text came from - no model judgment involved.
+  async function proceedWithText(text, kind, filename) {
+    if (text.length <= DIRECT_TEXT_MAX) {
+      await runDocumentExtraction(text, { fullText: text, kind, filename, start: null, end: null });
+      return;
+    }
+    setProcessingStage("structuring");
+    try {
+      const paras = splitParagraphs(text);
+      const raw = await callAPI([{ role: "user", content: SECTIONS_PROMPT(paras) }], SECTIONS_SYSTEM, "extract");
+      const parsed = parseJSON(raw);
+      const rawSections = parsed && Array.isArray(parsed.sections) ? parsed.sections : [];
+      // Code derives the real [start,end) from the paragraph offsets it
+      // already tracked; the model only ever named paragraph indices.
+      const built = rawSections.map((s) => {
+        const first = Math.max(0, Math.min(paras.length - 1, Math.round(Number(s.firstParagraph)) || 0));
+        const last = Math.max(first, Math.min(paras.length - 1, Math.round(Number(s.lastParagraph)) || first));
+        return { title: (s.title || "Section").slice(0, 80), note: (s.note || "").slice(0, 160), start: paras[first].start, end: paras[last].end };
+      }).filter((s) => s.end > s.start);
+      if (!built.length) throw new Error("empty");
+      setSubject(parsed.subject || filename || "Your document");
+      setSections(built);
+      docRef.current = { text, kind, filename };
+      setScreen("sections");
+    } catch {
+      setError("I couldn't find sections in that document. Try a shorter one.");
+      setScreen("home");
+    } finally {
+      setProcessingStage("");
+    }
+  }
+
+  // The student picked one slice of a long document: slice it locally (the
+  // full text is already in hand, no resend) and run the same direct-mode
+  // extraction call on just that slice.
+  async function chooseSection(index) {
+    const sec = sections[index];
+    const doc = docRef.current;
+    if (!sec || !doc) return;
+    const slice = doc.text.slice(sec.start, sec.end);
+    setScreen("processing");
+    await runDocumentExtraction(slice, { fullText: doc.text, kind: doc.kind, filename: doc.filename, start: sec.start, end: sec.end });
+  }
+
+  async function runDocumentExtraction(text, { fullText, kind, filename, start, end }) {
+    setProcessingStage("extracting"); setScreen("processing");
+    try {
+      const raw = await callAPI([{ role: "user", content: DOCUMENT_PROMPT(text) }], DOCUMENT_SYSTEM, "extract");
+      const parsed = parseJSON(raw);
+      if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
+      setSubject(parsed.subject || filename || "Your document");
+      setPending(parsed.concepts.slice(0, 7));
+      pendingSource.current = { text: fullText, kind, filename, start, end };
+      setScreen("confirm");
+    } catch {
+      setError("I couldn't find concepts in that. Try a different document.");
+      setScreen("home");
+    } finally {
+      setProcessingStage("");
     }
   }
 
@@ -398,7 +577,21 @@ export function useGrove() {
     const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", attempt: p.attempt || "", mastery: 0, days: 0, reviews: 0 }));
     let all;
     if (!activeGroveId) {
-      const id = await createGrove(subject, fresh);
+      // A grove founded from an extracted document (PDF/DOCX/TXT/URL) gets a
+      // sources row - the full text, never just a picked slice - and records
+      // its source_id (and the range actually used, if any) in the same
+      // write that creates the grove. Guests and every other source (photo,
+      // typed topic, scanned-PDF fallback) never touch /api/sources.
+      let source = null;
+      const doc = pendingSource.current;
+      if (student && doc && doc.text) {
+        try {
+          const r = await fetch("/api/sources", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, filename: doc.filename, kind: doc.kind, text: doc.text }) });
+          const j = r.ok ? await r.json() : null;
+          if (j && j.id) source = { id: j.id, start: doc.start, end: doc.end };
+        } catch {}
+      }
+      const id = await createGrove(subject, fresh, source);
       if (!id) { setError("Couldn't create a grove for this. Try again."); setScreen("home"); return; }
       setConcepts(fresh);
       all = fresh;
@@ -406,6 +599,7 @@ export function useGrove() {
       all = [...concepts, ...fresh];
       setConcepts(all);
     }
+    pendingSource.current = null; docRef.current = null;
     plantAndStart(fresh.map((c) => c.id), all);
   }
 
@@ -564,5 +758,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleTopic, handleUrl, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setUrlText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery, urlText };
 }

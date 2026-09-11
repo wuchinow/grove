@@ -52,12 +52,30 @@ export async function PUT(request) {
     return Response.json({ ok: true, id: body.id });
   }
 
-  // No id: create a new grove for this student.
+  // No id: create a new grove for this student. source_id (and, when a
+  // section was picked, source_start/source_end) records which /api/sources
+  // row this grove was founded from - null for photos, typed topics, and
+  // every later addition to an already-open grove.
   if (!hasConcepts) return Response.json({ error: "Need concepts to create a grove." }, { status: 400 });
+  const create = { student_id: student, name: name || "My grove", concepts: body.concepts, updated_at: new Date().toISOString() };
+  if (body.source_id) {
+    // Never trust a client-supplied source_id at face value - confirm it's
+    // actually this student's own source before wiring the grove to it, so
+    // one student can't link (and later, potentially, surface) another's.
+    const owns = await fetch(`${c.rest}/sources?id=eq.${encodeURIComponent(body.source_id)}&student_id=eq.${encodeURIComponent(student)}&select=id`, { headers: c.db, cache: "no-store" });
+    const ownRows = owns.ok ? await owns.json() : [];
+    if (ownRows[0]) {
+      create.source_id = body.source_id;
+      if (Number.isInteger(body.source_start) && Number.isInteger(body.source_end)) {
+        create.source_start = body.source_start;
+        create.source_end = body.source_end;
+      }
+    }
+  }
   const res = await fetch(base(c), {
     method: "POST",
     headers: { ...c.db, Prefer: "return=representation" },
-    body: JSON.stringify({ student_id: student, name: name || "My grove", concepts: body.concepts, updated_at: new Date().toISOString() }),
+    body: JSON.stringify(create),
   });
   if (!res.ok) return Response.json({ error: "Database write failed." }, { status: 502 });
   const rows = await res.json();

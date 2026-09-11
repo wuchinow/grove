@@ -29,6 +29,16 @@ export async function POST(request) {
     return Response.json({ error: "That username is taken. Try another." }, { status: 409 });
   }
 
+  // Same never-set rule as the OAuth callback: seed the Google avatar only
+  // when there's an adopted row and it has no avatar key at all, so an
+  // uploaded photo always wins and a removed one is never re-seeded. Reads
+  // byId's own profile/insights (already fetched above) rather than relying
+  // on the upsert to preserve columns it doesn't mention.
+  const meta = u.body.user_metadata || {};
+  const googleAvatar = meta.picture || meta.avatar_url;
+  const existingProfile = (byId && byId.profile) || {};
+  const profile = googleAvatar && !("avatar" in existingProfile) ? { ...existingProfile, avatar: googleAvatar } : existingProfile;
+
   const w = await fetch(`${c.rest}/students?on_conflict=student_id`, {
     method: "POST",
     headers: { ...c.db, Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -37,6 +47,8 @@ export async function POST(request) {
       username,
       email: u.body.email || null,
       auth_user_id: u.body.id,
+      profile,
+      insights: Array.isArray(byId && byId.insights) ? byId.insights : [],
       updated_at: new Date().toISOString(),
     }),
   });
