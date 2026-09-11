@@ -5,7 +5,7 @@ import Icon from "./Icon";
 export function Shell({ children }) {
   return (
     <div className="nunito minvh" style={{ background: `linear-gradient(175deg, #FBF3E5 0%, #F3E7D3 38%, ${C.bg} 68%, #E2D2B8 100%)`, backgroundAttachment: "fixed", color: C.ink, display: "flex", justifyContent: "center", fontFamily: "'Nunito',sans-serif" }}>
-      <style>{FONTS}</style>
+      <style dangerouslySetInnerHTML={{ __html: FONTS }} />
       <div className="minvh" style={{ width: "100%", maxWidth: 600, display: "flex", flexDirection: "column", position: "relative" }}>{children}</div>
     </div>
   );
