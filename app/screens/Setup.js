@@ -2,18 +2,33 @@
 
 import React from "react";
 import { C } from "../lib/theme";
+import { fileToImage } from "../lib/ai";
 import { Shell, Logo } from "../components/Shell";
+import Icon from "../components/Icon";
 
 export default function Setup({ g }) {
-  const { editingProfile, setEditingProfile, setProfile, setSetupGrade, setSetupInterests, setupGrade, setupInterests } = g;
+  const { editingProfile, profile, setEditingProfile, setProfile, setSetupAvatar, setSetupGrade, setSetupInterests, setupAvatar, setupGrade, setupInterests } = g;
   const grades = ["4-5", "6-8", "9-10", "11-12", "College", "Adult"];
   const placeholders = ["A sport, game, or show you like", "Something you're good at", "Anything else you're into"];
+  const avatarRef = React.useRef(null);
 
   function setInterest(i, val) {
     setSetupInterests((prev) => prev.map((x, idx) => (idx === i ? val : x)));
   }
+  async function handleAvatar(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const img = await fileToImage(file, 96);
+      setSetupAvatar(`data:image/jpeg;base64,${img.data}`);
+    } catch {}
+    if (avatarRef.current) avatarRef.current.value = "";
+  }
   function start() {
-    setProfile({ grade: setupGrade, interests: setupInterests.map((x) => x.trim()).filter(Boolean) });
+    // Preserve any existing profile field this screen doesn't own (avatar,
+    // soundOn, snakeBest) - this used to always send a fresh { grade,
+    // interests } object, silently wiping everything else on every save.
+    setProfile({ ...(profile || {}), grade: setupGrade, interests: setupInterests.map((x) => x.trim()).filter(Boolean), avatar: setupAvatar });
     setEditingProfile(false);
   }
 
@@ -24,6 +39,21 @@ export default function Setup({ g }) {
         <div className="fadeUp" style={{ marginTop: 26 }}>
           <div className="disp" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.2 }}>{editingProfile ? "Update your info" : "A couple of quick things"}</div>
           <div style={{ color: C.sub, fontSize: 14, fontWeight: 700, marginTop: 6, lineHeight: 1.55 }}>This sets how Grove pitches its questions and talks to you. Change any of it later from Help.</div>
+        </div>
+
+        <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 999, flexShrink: 0, overflow: "hidden", background: C.soft, display: "grid", placeItems: "center" }}>
+            {setupAvatar ? <img src={setupAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="sprout" size={26} color={C.primaryDeep} />}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+            <button onClick={() => avatarRef.current && avatarRef.current.click()} style={{ border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: "8px 14px", borderRadius: 12, color: C.primaryDeep, fontWeight: 800, fontSize: 13 }}>
+              {setupAvatar ? "Change photo" : "Add a photo"} <span style={{ fontWeight: 700, color: C.sub }}>(optional)</span>
+            </button>
+            {setupAvatar && (
+              <button onClick={() => setSetupAvatar("")} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, color: C.sub, fontWeight: 700, fontSize: 12.5 }}>Remove photo</button>
+            )}
+          </div>
+          <input ref={avatarRef} type="file" accept="image/*" onChange={handleAvatar} style={{ display: "none" }} />
         </div>
 
         <div style={{ marginTop: 26, fontSize: 14, fontWeight: 800 }}>What grade are you in?</div>

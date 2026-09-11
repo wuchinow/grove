@@ -41,5 +41,11 @@ export default function Icon({ name, size = 20, color = "currentColor", strokeWi
   if (name === "arrowUp") return (
     <svg {...common}><path d="M12 19V5" /><path d="m6 11 6-6 6 6" /></svg>
   );
+  if (name === "snake") return (
+    <svg {...common}><path d="M4 7c0-1.7 1.3-3 3-3s3 1.3 3 3-1.3 3-3 3H7c-1.7 0-3 1.3-3 3s1.3 3 3 3h6c1.7 0 3-1.3 3-3" /><circle cx="18" cy="17" r="1.6" fill={color} stroke="none" /></svg>
+  );
+  if (name === "sound") return (
+    <svg {...common}><path d="M4 10v4h3.5L12 17.5v-11L7.5 10z" /><path d="M16 9.5a4 4 0 0 1 0 5" /><path d="M18.5 7a7.5 7.5 0 0 1 0 10" /></svg>
+  );
   return null;
 }

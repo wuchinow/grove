@@ -170,13 +170,13 @@ Respond with ONLY a JSON object, no markdown or backticks. Avoid double quotes i
 {"message":"<what you say>","phase":"question|hint|explain|check|done","understanding":"unknown|struggling|partial|solid","options":["<choice>", ...],"correctOption":"<matching options entry, or "" if options is []>","visual":<optional, omit unless genuinely needed>,"reflection":"<optional, only set when phase is done>"}`;
 
 export const EXTRACT_SYSTEM = `You look at one or more photos of a student's schoolwork (notes, worksheet, study guide, textbook page, diagram, vocab list) and pull out the key concepts they need to learn. When there's more than one photo, treat them as pages of the same assignment and combine what they show rather than treating each in isolation.`;
-export const EXTRACT_PROMPT = `Identify the 4-8 most important concepts to study from this photo (or set of photos, if there's more than one - they're pages of the same assignment). If any photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows, drawing on whichever page it appears on. Respond with ONLY JSON, no markdown:
+export const EXTRACT_PROMPT = `Identify the seven most important concepts to study from this photo (or set of photos, if there's more than one - they're pages of the same assignment). If any photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows, drawing on whichever page it appears on. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>","attempt":"<optional: what the student's own work shows for this concept, only if visible>"}]}`;
 
 export const TOPIC_SYSTEM = `You take a topic a student wants to study and break it into the handful of concepts worth learning first. The topic may be a school subject, a chapter, a single idea, or something they are simply curious about.`;
 export const TOPIC_PROMPT = (topic, grade) => `The student wants to study: "${topic}".${grade ? ` They are at this level: ${grade}.` : ""}
 
-Break it into the 4-8 concepts most worth learning, ordered so earlier ones build toward later ones. Pitch the scope at their level: a broad topic should be narrowed to what actually matters first, not summarised shallowly.
+Break it into the seven concepts most worth learning, ordered so earlier ones build toward later ones. Pitch the scope at their level: a broad topic should be narrowed to what actually matters first, not summarised shallowly.
 
 Respond with ONLY JSON, no markdown:
 {"subject":"<the topic, tidied up>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;

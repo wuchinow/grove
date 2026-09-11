@@ -19,6 +19,7 @@ UX-RULES.md; this script asserts only the one thing Chromium actually can
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -82,12 +83,36 @@ def run(base_url: str, out_dir: Path):
             topic_input = page.get_by_placeholder("Photosynthesis, the Krebs cycle, causes of WWI…")
             topic_input.fill("Test topic")
             topic_input.press("Enter")
-            page.wait_for_selector("text=Ready to plant", timeout=10000)
+            page.wait_for_selector("text=Here's what I found", timeout=10000)
             page.screenshot(path=str(out_dir / f"confirm-{width}.png"), full_page=True)
 
-            page.get_by_text("Plant and start growing").click()
+            # The dashed "Add your own concept" card, opened inline.
+            add_btn = page.get_by_text("+ Add your own concept")
+            if add_btn.count():
+                add_btn.click()
+                page.screenshot(path=str(out_dir / f"confirm-add-{width}.png"), full_page=True)
+                page.keyboard.press("Escape")
+
+            # Plant button text is now a live count ("Plant 2 trees"); lands
+            # on Home first (seedlings rising) and auto-advances into Tutor.
+            page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
             page.wait_for_selector("text=What is 2 + 2", timeout=10000)
             page.screenshot(path=str(out_dir / f"tutor-{width}.png"), full_page=True)
+
+            # Snake only shows in AccountMenu for signed-in/legacy students
+            # (guests get a plain "Sign in" button, no "Account" dropdown at
+            # all) - only reachable with real Supabase credentials configured
+            # (not this sandbox). Best-effort only.
+            account_btn = page.get_by_role("button", name="Account")
+            take_a_break = page.get_by_text("Take a break") if account_btn.count() else None
+            if account_btn.count():
+                account_btn.click()
+            if take_a_break and take_a_break.count():
+                take_a_break.click()
+                page.wait_for_selector("text=Take a break", timeout=5000)
+                page.screenshot(path=str(out_dir / f"play-{width}.png"), full_page=True)
+            else:
+                print(f"  [{width}px] Skipping Play screenshot: no signed-in session available (guest-only in this environment).")
 
             # A font-size sanity check - the real iOS zoom-on-focus behavior
             # needs WebKit on an actual device, not Chromium.

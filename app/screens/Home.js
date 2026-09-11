@@ -12,7 +12,7 @@ import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -99,12 +99,17 @@ export default function Home({ g }) {
           {has ? (
             <div style={{ position: "relative", zIndex: 1 }}>
             <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "28px 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-                {ordered.map((c) => (
-                  <button key={c.id} onClick={() => setSelected(c.id)} className={grewIds.includes(c.id) ? "grew" : ""} style={{ border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 }} title={c.name}>
-                    <Tree days={c.days} mastery={c.mastery} width={68} />
-                    <span className="treeLabel" title={c.name}>{c.name}</span>
-                  </button>
-                ))}
+                {(() => { let plantedIndex = 0; return ordered.map((c) => {
+                  const justPlanted = justPlantedIds.includes(c.id);
+                  const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 };
+                  if (justPlanted) style.animationDelay = `${Math.min(plantedIndex++, 6) * 50}ms`;
+                  return (
+                    <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""} style={style} title={c.name}>
+                      <Tree days={c.days} mastery={c.mastery} width={68} />
+                      <span className="treeLabel" title={c.name}>{c.name}</span>
+                    </button>
+                  );
+                }); })()}
               </div>
               </div>
             ) : (
@@ -180,7 +185,7 @@ export default function Home({ g }) {
               <button onClick={() => fileRef.current && fileRef.current.click()} style={{ width: "100%", border: `1.5px solid ${C.line}`, cursor: "pointer", textAlign: "left", padding: "13px 14px", borderRadius: 14, background: C.bg, color: C.ink, display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="camera" size={18} color={C.primaryDeep} /></span>
                 <span style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Photograph your work</span>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Share your work</span>
                   <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Notes, a worksheet, or several pages at once</span>
                 </span>
               </button>

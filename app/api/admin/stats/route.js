@@ -32,7 +32,9 @@ export async function GET() {
 
   // Usage/cost, last 30 days. Cost is an estimate from list pricing (see
   // /lib/pricing.js) - actual billing may run a little lower with caching,
-  // which Grove doesn't currently use.
+  // which Grove doesn't currently use. `|| 0` also guarantees a row for a
+  // model with no pricing entry (e.g. kind "game", model "snake") is
+  // counted as a call but never contributes a null to any sum below.
   const costOf = (t) => estCost(t.model, t.input_tokens, t.output_tokens) || 0;
   const sumWithin = (days) => {
     const rows = turns.filter((t) => within(t.created_at, days));

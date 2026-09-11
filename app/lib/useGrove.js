@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { callAPI, parseJSON, fileToImage, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, SAMPLE, uid } from "./ai";
+import { soundEnabled, playMiss, playSolid, playSessionComplete } from "./sound";
 
 // ---- useGrove --------------------------------------------------------------
 // A student can have several groves, one per subject. This hook owns: the
@@ -25,6 +26,8 @@ export function useGrove() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
   const [grewIds, setGrewIds] = useState([]);
+  const [justPlantedIds, setJustPlantedIds] = useState([]); // freshly confirmed concepts, animated once on Home then cleared
+  const plantTimeout = useRef(null);
   const [failed, setFailed] = useState(false);
   const [student, setStudent] = useState(null);   // signed-in (or legacy-link) student id; null = guest
   const [loaded, setLoaded] = useState(false);
@@ -33,6 +36,7 @@ export function useGrove() {
   const [insights, setInsights] = useState([]);   // short notes from past sessions, for tutor calibration
   const [setupGrade, setSetupGrade] = useState("");
   const [setupInterests, setSetupInterests] = useState(["", "", ""]);
+  const [setupAvatar, setSetupAvatar] = useState(""); // data URL, seeded from profile.avatar when editing
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
   const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic", drives Processing's copy
@@ -67,6 +71,8 @@ export function useGrove() {
   // Chat-pane scroll position (top-align a new tutor reply vs. bottom-anchor
   // the student's own turn) is DOM-dependent and owned by Tutor.js, which has
   // the message refs.
+
+  useEffect(() => () => { if (plantTimeout.current) clearTimeout(plantTimeout.current); }, []);
 
   // Who is this? Three answers, in order of preference:
   //   account - a session cookie names a signed-in student (the normal case)
@@ -321,7 +327,7 @@ export function useGrove() {
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || "Your work");
-      setPending(parsed.concepts.slice(0, 8));
+      setPending(parsed.concepts.slice(0, 7));
       setScreen("confirm");
     } catch {
       setError(multi ? "I couldn't read those clearly. Try brighter, closer photos." : "I couldn't read that one clearly. Try a brighter, closer photo.");
@@ -346,7 +352,7 @@ export function useGrove() {
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || topic);
-      setPending(parsed.concepts.slice(0, 8));
+      setPending(parsed.concepts.slice(0, 7));
       setScreen("confirm");
     } catch {
       setError("I couldn't break that topic down. Try naming it a little differently.");
@@ -389,16 +395,35 @@ export function useGrove() {
   // whether or not the student is signed in by name.
   async function confirmConcepts() {
     const fresh = pending.map((p) => ({ id: uid(), name: p.name, note: p.note || "", attempt: p.attempt || "", mastery: 0, days: 0, reviews: 0 }));
+    let all;
     if (!activeGroveId) {
       const id = await createGrove(subject, fresh);
       if (!id) { setError("Couldn't create a grove for this. Try again."); setScreen("home"); return; }
       setConcepts(fresh);
-      startSession(fresh.map((c) => c.id), fresh);
-      return;
+      all = fresh;
+    } else {
+      all = [...concepts, ...fresh];
+      setConcepts(all);
     }
-    const all = [...concepts, ...fresh];
-    setConcepts(all);
-    startSession(fresh.map((c) => c.id), all);
+    plantAndStart(fresh.map((c) => c.id), all);
+  }
+
+  // Lands on Home with the new trees rising (Home.js animates justPlantedIds
+  // with the reused .grew keyframe, staggered), plays the session-complete
+  // sound, then auto-advances into tutoring once the animation has had time
+  // to play - "Plant and start growing" stays true, it just shows the
+  // planting first rather than skipping straight to the first question.
+  function plantAndStart(freshIds, all) {
+    setGrewIds([]);
+    setJustPlantedIds(freshIds);
+    setScreen("home");
+    if (soundEnabled(student, profile)) playSessionComplete();
+    if (plantTimeout.current) clearTimeout(plantTimeout.current);
+    plantTimeout.current = setTimeout(() => {
+      plantTimeout.current = null;
+      setJustPlantedIds([]);
+      startSession(freshIds, all);
+    }, 500);
   }
 
   function startSession(ids, all) {
@@ -411,6 +436,18 @@ export function useGrove() {
   function studyEverything() {
     const ids = [...concepts].sort((a, b) => a.mastery - b.mastery).map((c) => c.id);
     startSession(ids, concepts);
+  }
+
+  // Snake best score plus a best-effort turns row, so admin can see whether
+  // it displaces study time. Guests never reach the Play screen (no entry
+  // point in AccountMenu), so there's always a student to resolve.
+  async function reportGameScore(score) {
+    if (!student) return;
+    try {
+      const r = await fetch("/api/game", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, score }) });
+      const j = r.ok ? await r.json() : null;
+      if (j && typeof j.best === "number") setProfile((prev) => ({ ...(prev || {}), snakeBest: j.best }));
+    } catch {}
   }
   async function startConcept(id, all) {
     const c = (all || concepts).find((x) => x.id === id);
@@ -494,6 +531,10 @@ export function useGrove() {
       setChat([...nextChat, { who: "tutor", text: j.message, phase: j.phase, options: Array.isArray(j.options) ? j.options : [], correctOption: j.correctOption || "", visual: j.visual || null }]);
       setPhase(j.phase || phase);
       updateMastery(activeId, j.understanding);
+      if (soundEnabled(student, profile)) {
+        if (j.understanding === "solid") playSolid();
+        else if (j.understanding === "struggling") playMiss();
+      }
       if (j.phase === "done") {
         const doneConcept = concepts.find((c) => c.id === activeId);
         setConcepts((prev) => prev.map((c) => c.id === activeId ? { ...c, days: c.days + 1, reviews: c.reviews + 1 } : c));
@@ -522,5 +563,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }

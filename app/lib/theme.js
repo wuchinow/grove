@@ -27,6 +27,7 @@ export const FONTS = `
 .fadeUp{animation:fadeUp .32s ease both}
 .pop{animation:pop .35s ease both}
 .grew{animation:grow .7s cubic-bezier(.22,1,.36,1) both}
+.planted{animation:grow .38s cubic-bezier(.22,1,.36,1) both}
 .disp{font-family:'Fraunces',Georgia,serif}
 .fullvh{height:100vh;height:100dvh}
 .minvh{min-height:100vh;min-height:100dvh}
@@ -41,7 +42,7 @@ export const FONTS = `
 }
 @media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }
 @media (prefers-reduced-motion: reduce){
-  .fadeUp,.pop,.grew,.dotPulse{animation:none}
+  .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
 }
 .groveHeaderIcon{display:grid;place-items:center}
 .groveHeaderName{font-size:19px;max-width:150px}

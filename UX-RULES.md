@@ -1,16 +1,18 @@
 # Grove UX rules
 
-**Draft — review in chat.** Compiled from the runbook's "Product rules worth
+**Draft, review in chat.** Compiled from the runbook's "Product rules worth
 not breaking" and the roadmap's Tutor/Confirm/Phone header/Setup/Layout
 hygiene sections, as of the Stage 1 push (Sept 2026). Canonical source of
 truth is still the runbook; treat this as a working checklist to run a UI
-change against, not a substitute for reading the runbook itself.
+change against, not a substitute for reading the runbook itself. Rules 13-17
+mirror the runbook's "Product rules worth not breaking" verbatim; that
+section is their canonical source, not this file.
 
 ## Layout
 
 1. Every text input is 16px or larger. Below 16px, iOS Safari zooms the page
    on focus and the layout clips.
-2. `overflow-x: hidden` on `html, body` — the page body never scrolls
+2. `overflow-x: hidden` on `html, body`: the page body never scrolls
    sideways; a wide element gets its own `overflow-x: auto` container instead.
 3. Fixed or sticky bottom bars pad for `env(safe-area-inset-bottom)`.
 4. Under 480px wide: header icon-only where a label would crowd the row
@@ -37,16 +39,16 @@ change against, not a substitute for reading the runbook itself.
 
 11. No sound is ever a verdict: a miss and a solid answer share the same
     family and volume, only the contour differs. No buzzer.
-12. Sounds are short and quiet, off by default expectation is none — the
-    student can turn them off from the account menu at any time.
+12. Sounds are short and quiet, on by default; the student can turn them off
+    from the account menu.
 
 ## Process (the ones that have already cost us something)
 
-13. Ask, never tell — the tutor always asks a question before handing over an
+13. Ask, never tell: the tutor always asks a question before handing over an
     answer.
 14. A miss never raises mastery. A hint or an honest "I don't know" is
     neutral, never counted as wrong.
-15. No streaks, no daily quota — height on the grove tracks completed
+15. No streaks, no daily quota: height on the grove tracks completed
     sessions, not calendar days.
 16. Tone follows grade: high school and up gets a plain peer register, no
     baby talk.
@@ -54,6 +56,14 @@ change against, not a substitute for reading the runbook itself.
     Concepts, mastery, and the answer key are durable app data, never
     re-derived from the model mid-conversation.
 18. Every non-final tutor turn ends in something the student can act on (a
-    question, or options) — a flat statement with nothing to respond to
+    question, or options): a flat statement with nothing to respond to
     wastes an exchange and an API call; code re-prompts once if the model
     drops this, then guarantees the shape as a last resort.
+
+## Rendering guarantees
+
+19. The question is bolded and in its own paragraph, every turn: a prompt
+    rule guaranteed by the renderer (`autoboldQuestion` in `Tutor.js`).
+20. If the model's output shape can vary, code guarantees the shape. Never
+    loosen a prompt to work around a parse failure; extend the parser
+    instead (`parseJSON` in `ai.js`).
