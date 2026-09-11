@@ -23,7 +23,7 @@ export async function POST(request) {
   const r = await authSignIn(c, email.toLowerCase(), password);
   if (!r.ok || !r.body || !r.body.access_token) return Response.json({ error: authError(r, "Couldn't sign in.") }, { status: 401 });
   const me = await studentByAuthId(c, r.body.user.id);
-  if (!me) return Response.json({ error: "This account has no grove attached. Ask David to link it." }, { status: 409 });
+  if (!me) return Response.json({ error: "This account has no grove attached yet. Send feedback from the Help screen and we'll link it." }, { status: 409 });
   writeSessionCookie(r.body);
   return Response.json({ ok: true, student: { student_id: me.student_id, username: me.username, role: me.role } });
 }

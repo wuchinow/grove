@@ -1,6 +1,6 @@
 -- In-app feedback. One row per submission from /api/feedback, mirrored
--- best-effort to a Notion database and emailed to David - neither can
--- block or fail the submit, same pattern as turns logging.
+-- best-effort to a Notion database and emailed out - neither can block or
+-- fail the submit, same pattern as turns logging.
 --
 -- NOTE: this migration has already been applied directly to the live
 -- Supabase project (xpawazygyvupevgjusyv) via Supabase:apply_migration.

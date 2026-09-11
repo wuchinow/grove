@@ -40,7 +40,7 @@ export async function POST(request) {
     headers: { ...c.db, Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(patch),
   });
-  if (!w.ok) return Response.json({ error: "Account was created but the grove couldn't be attached. Ask David." }, { status: 502 });
+  if (!w.ok) return Response.json({ error: "Your account was created but the grove couldn't be attached. Send feedback from the Help screen and we'll fix it." }, { status: 502 });
 
   if (!session) return Response.json({ ok: true, needsConfirmation: true });
   writeSessionCookie(session);

@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
 
-import { cfg, authExchangeCode, readVerifierCookie, clearVerifierCookie, writeSessionCookie, studentExistsFor } from "../../../lib/auth";
+import { cfg, authExchangeCode, readVerifierCookie, clearVerifierCookie, writeSessionCookie, studentByAuthId } from "../../../lib/auth";
 
 // Step two: Google sent the browser back here. Trade the code for a session,
 // then decide where the person lands.
@@ -37,7 +37,28 @@ export async function GET(request) {
   }
   writeSessionCookie(r.body);
 
-  const known = await studentExistsFor(c, r.body.user.id);
-  if (!known) home.searchParams.set("claim", "1");
+  const me = await studentByAuthId(c, r.body.user.id);
+  if (!me) { home.searchParams.set("claim", "1"); return Response.redirect(home.toString(), 302); }
+
+  // Seed the Google avatar the first time only: an uploaded photo always
+  // wins, and a removed photo (profile.avatar === "") must never be
+  // re-seeded, so this only fires when the key is missing entirely.
+  const meta = r.body.user.user_metadata || {};
+  const googleAvatar = meta.picture || meta.avatar_url;
+  if (googleAvatar && !("avatar" in (me.profile || {}))) {
+    try {
+      await fetch(`${c.rest}/students?on_conflict=student_id`, {
+        method: "POST",
+        headers: { ...c.db, Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({
+          student_id: me.student_id,
+          profile: { ...(me.profile || {}), avatar: googleAvatar },
+          insights: Array.isArray(me.insights) ? me.insights : [],
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } catch {}
+  }
+
   return Response.redirect(home.toString(), 302);
 }

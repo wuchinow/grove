@@ -6,9 +6,9 @@ const NOTION_VERSION = "2025-09-03";
 
 // Writes the feedback row, then two independent best-effort mirrors that can
 // never block or fail the submit: a Notion page (same table the team already
-// reviews feedback in) and a Resend email to David. Both no-op cleanly if
-// their env var isn't set yet - same "best-effort, fire-and-forget" pattern
-// as logTurn in /api/anthropic/route.js.
+// reviews feedback in) and a Resend email. Both no-op cleanly if their env
+// vars aren't set yet - same "best-effort, fire-and-forget" pattern as
+// logTurn in /api/anthropic/route.js.
 export async function POST(request) {
   const c = cfg();
   if (!c) return Response.json({ error: "Server is missing Supabase settings." }, { status: 500 });
@@ -68,8 +68,8 @@ async function mirrorToNotion({ studentId, email, message }) {
 
 async function emailNotification({ studentId, email, message, page }) {
   const key = process.env.RESEND_API_KEY;
-  if (!key) return;
-  const to = process.env.FEEDBACK_TO || "wuchinow@gmail.com";
+  const to = process.env.FEEDBACK_TO;
+  if (!key || !to) return;
   await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

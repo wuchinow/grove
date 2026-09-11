@@ -53,7 +53,7 @@ export default function FeedbackCard({ g }) {
           <>
             <div className="disp" style={{ fontSize: 22, fontWeight: 600 }}>Send feedback</div>
             <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700, marginTop: 6, lineHeight: 1.5 }}>
-              Anything that felt off, or an idea worth trying. Goes straight to David.
+              Anything that felt off, or an idea worth trying. We read every one.
             </div>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               <textarea

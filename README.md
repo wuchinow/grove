@@ -58,7 +58,7 @@ so only the service role can read or write. Migrations live in `supabase/migrati
 
 ## Current limitations
 
-- **No password reset yet.** Ask David.
+- **No password reset yet.** Send feedback from the Help screen.
 - **No spaced repetition yet.** "Next review" labels are placeholders.
 - **No COPPA-specific handling yet.** Fine for family and friends, not for
   distribution beyond that.

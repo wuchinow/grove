@@ -185,13 +185,6 @@ export async function resolveStudent(c, fallbackId) {
   return { ...row, mode: "legacy" };
 }
 
-// Is there a students row for this auth user? A Google sign-in creates the
-// auth account before any username exists, so the callback needs to tell
-// "known person" from "needs to pick a username" without guessing.
-export async function studentExistsFor(c, authUserId) {
-  return !!(await studentByAuthId(c, authUserId));
-}
-
 export async function requireAdmin(c) {
   const me = await currentStudent(c);
   return me && me.role === "admin" ? me : null;

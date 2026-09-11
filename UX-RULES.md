@@ -69,3 +69,9 @@ section is their canonical source, not this file.
 20. If the model's output shape can vary, code guarantees the shape. Never
     loosen a prompt to work around a parse failure; extend the parser
     instead (`parseJSON` in `ai.js`).
+
+## Voice
+
+21. No personal names or contact details in app copy or source. The app
+    speaks as "we" - a student pointed to help goes to Send feedback on the
+    Help screen, never to a named person.
