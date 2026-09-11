@@ -45,12 +45,14 @@ export const FONTS = `
   .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
 }
 .groveHeaderIcon{display:grid;place-items:center}
-.groveHeaderName{font-size:19px;max-width:150px}
+.groveHeaderName{font-size:19px;max-width:150px;min-width:44px}
 .groveHeaderPill{padding:0 13px}
 @media (max-width:480px){
-  .groveHeaderIcon{display:none}
   .groveHeaderName{font-size:16px;max-width:96px}
   .groveHeaderPill{padding:0;width:36px;justify-content:center}
   .groveHeaderPillLabel{display:none}
+}
+@media (max-width:360px){
+  .groveHeaderChevron{display:none}
 }
 `;

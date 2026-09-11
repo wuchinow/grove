@@ -62,7 +62,7 @@ export default function Home({ g }) {
             >
               <div className="groveHeaderIcon" style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
               <span className="disp groveHeaderName" style={{ fontWeight: 600, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-              <Icon name={icon} size={15} color={C.stone} strokeWidth={2.4} />
+              <span className="groveHeaderChevron" style={{ display: "inline-flex", flexShrink: 0 }}><Icon name={icon} size={15} color={C.stone} strokeWidth={2.4} /></span>
             </button>
           );
         })()}

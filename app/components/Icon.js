@@ -47,5 +47,14 @@ export default function Icon({ name, size = 20, color = "currentColor", strokeWi
   if (name === "sound") return (
     <svg {...common}><path d="M4 10v4h3.5L12 17.5v-11L7.5 10z" /><path d="M16 9.5a4 4 0 0 1 0 5" /><path d="M18.5 7a7.5 7.5 0 0 1 0 10" /></svg>
   );
+  if (name === "feedback") return (
+    <svg {...common}><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9A1.5 1.5 0 0 1 18.5 16H10l-4.5 4v-4H5.5A1.5 1.5 0 0 1 4 14.5z" /></svg>
+  );
+  if (name === "dollar") return (
+    <svg {...common}><path d="M12 3v18" /><path d="M16 7.5c0-1.7-1.8-3-4-3s-4 1.2-4 3 1.8 2.6 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3" /></svg>
+  );
+  if (name === "gear") return (
+    <svg {...common}><circle cx="12" cy="12" r="3.2" /><path d="M12 3.5v2.4M12 18.1v2.4M20.5 12h-2.4M5.9 12H3.5M17.7 6.3l-1.7 1.7M8 16l-1.7 1.7M17.7 17.7 16 16M8 8 6.3 6.3" /></svg>
+  );
   return null;
 }

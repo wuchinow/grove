@@ -9,7 +9,7 @@ import { soundEnabled, setSoundEnabled } from "../lib/sound";
 // in; for a signed-in student it opens a short menu. Same dropdown pattern
 // as GroveSwitcher: no dim, closes on an outside tap.
 export default function AccountMenu({ g }) {
-  const { auth, profile, setAuthCard, setEditingProfile, setProfile, setScreen, setSetupAvatar, setSetupGrade, setSetupInterests, signOut, student } = g;
+  const { auth, profile, setAuthCard, setEditingProfile, setFeedbackOpen, setProfile, setScreen, setSetupAvatar, setSetupGrade, setSetupInterests, signOut, student } = g;
   const [open, setOpen] = React.useState(false);
   // Guests have no profile, so their sound preference lives in localStorage;
   // this local state just mirrors it for the icon's on/off color.
@@ -68,6 +68,7 @@ export default function AccountMenu({ g }) {
             )}
             <Item icon="sound" onClick={() => setSoundEnabled(student, profile, setProfile, !soundOn)}>{soundOn ? "Sound: on" : "Sound: off"}</Item>
             <Item icon="snake" onClick={() => setScreen("play")}>Take a break</Item>
+            <Item icon="feedback" onClick={() => setFeedbackOpen(true)}>Send feedback</Item>
             {auth.role === "admin" && <Item icon="chart" onClick={() => window.location.assign("/admin")}>Dashboard</Item>}
             {signedIn
               ? <Item muted onClick={signOut}>Sign out</Item>

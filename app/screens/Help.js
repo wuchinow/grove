@@ -8,7 +8,7 @@ import Icon from "../components/Icon";
 // A full screen rather than a sheet, so it matches Progress: back top-left, room
 // to read, and no button stranded at the bottom of a scrolling panel.
 export default function Help({ g }) {
-  const { student, profile, setEditingProfile, setScreen, setSetupAvatar, setSetupGrade, setSetupInterests } = g;
+  const { student, profile, setEditingProfile, setFeedbackOpen, setScreen, setSetupAvatar, setSetupGrade, setSetupInterests } = g;
 
   const Step = ({ title, children }) => (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "14px 16px", boxShadow: "0 3px 12px rgba(58,42,32,.05)" }}>
@@ -64,6 +64,9 @@ export default function Help({ g }) {
             <Icon name="sprout" size={16} color={C.primaryDeep} /> Edit my grade &amp; interests
           </button>
         )}
+        <button onClick={() => setFeedbackOpen(true)} style={{ marginTop: 10, width: "100%", border: `1.5px solid ${C.line}`, background: "transparent", cursor: "pointer", padding: 14, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Icon name="feedback" size={16} color={C.primaryDeep} /> Send feedback
+        </button>
       </div>
     </Shell>
   );

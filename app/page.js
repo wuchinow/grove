@@ -11,6 +11,7 @@ import Processing from "./screens/Processing";
 import Confirm from "./screens/Confirm";
 import Tutor from "./screens/Tutor";
 import Play from "./screens/Play";
+import FeedbackCard from "./components/FeedbackCard";
 
 // Grove decides which screen to show; every screen reads its data from useGrove.
 export default function App() {
@@ -25,13 +26,22 @@ export default function App() {
   }, []);
 
   // Setup comes first for a named grove that has no grade yet, or is editing it.
-  if (g.student && g.loaded && (!g.profile || g.editingProfile)) return <Setup g={g} />;
-  if (g.screen === "home") return <Home g={g} />;
-  if (g.screen === "progress") return <Progress g={g} />;
-  if (g.screen === "help") return <Help g={g} />;
-  if (g.screen === "processing") return <Processing g={g} />;
-  if (g.screen === "confirm") return <Confirm g={g} />;
-  if (g.screen === "tutor") return <Tutor g={g} />;
-  if (g.screen === "play") return <Play g={g} />;
-  return null;
+  const screen = g.student && g.loaded && (!g.profile || g.editingProfile) ? <Setup g={g} />
+    : g.screen === "home" ? <Home g={g} />
+    : g.screen === "progress" ? <Progress g={g} />
+    : g.screen === "help" ? <Help g={g} />
+    : g.screen === "processing" ? <Processing g={g} />
+    : g.screen === "confirm" ? <Confirm g={g} />
+    : g.screen === "tutor" ? <Tutor g={g} />
+    : g.screen === "play" ? <Play g={g} />
+    : null;
+
+  // Feedback can be opened from more than one screen, so it overlays
+  // whichever one is active rather than living inside any single screen.
+  return (
+    <>
+      {screen}
+      {g.feedbackOpen && <FeedbackCard g={g} />}
+    </>
+  );
 }

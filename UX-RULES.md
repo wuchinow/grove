@@ -16,8 +16,10 @@ section is their canonical source, not this file.
    sideways; a wide element gets its own `overflow-x: auto` container instead.
 3. Fixed or sticky bottom bars pad for `env(safe-area-inset-bottom)`.
 4. Under 480px wide: header icon-only where a label would crowd the row
-   (e.g. Progress/Help), decorative icon squares hide before text does, and a
-   name/label shrinks font size before it truncates with an ellipsis.
+   (e.g. Progress/Help). The grove tree-icon square always stays visible; the
+   grove name shrinks font size first, then truncates with an ellipsis at a
+   ~12-character floor. If the row still doesn't fit at very narrow widths,
+   a trailing decorative chevron is what gives way, never the icon or the name.
 5. A tutor reply is shown from its first line: the chat pane scrolls so a new
    tutor message's top sits just under the header, not the message's bottom.
 6. Answer choices and the always-available Hint / "I don't know" live in the

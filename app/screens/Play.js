@@ -4,9 +4,12 @@ import React from "react";
 import { C } from "../lib/theme";
 import { Shell } from "../components/Shell";
 import Icon from "../components/Icon";
+import { soundEnabled, playSnakeEat, playSnakeOver } from "../lib/sound";
 
 const GRID = 16;
-const TICK_MS = 140;
+const START_TICK_MS = 200;
+const MIN_TICK_MS = 120;
+const SPEEDUP_MS = 4;
 
 function randCell(exclude) {
   let cell;
@@ -20,7 +23,7 @@ function randCell(exclude) {
 // primary control (a left-edge swipe would fight Safari's back gesture);
 // arrow keys/WASD work too for desktop testing.
 export default function Play({ g }) {
-  const { profile, reportGameScore, setScreen } = g;
+  const { profile, reportGameScore, setScreen, student } = g;
   const best = (profile && profile.snakeBest) || 0;
 
   const wrapRef = React.useRef(null);
@@ -35,6 +38,7 @@ export default function Play({ g }) {
   const nextDirRef = React.useRef({ x: 1, y: 0 });
   const foodRef = React.useRef({ x: 12, y: 8 });
   const scoreRef = React.useRef(0);
+  const speedRef = React.useRef(START_TICK_MS);
   const reportedRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -52,6 +56,7 @@ export default function Play({ g }) {
     nextDirRef.current = { x: 1, y: 0 };
     foodRef.current = randCell(snakeRef.current);
     scoreRef.current = 0;
+    speedRef.current = START_TICK_MS;
     reportedRef.current = false;
     setScore(0);
     setGameOver(false);
@@ -84,13 +89,16 @@ export default function Play({ g }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  // Fixed-tick game loop, torn down and rebuilt whenever size/pause/over
-  // changes so it never ticks while paused or after a collision.
+  // Self-scheduling game loop (setTimeout, not setInterval) so the tick
+  // period can change mid-game as speedRef ramps up - torn down and rebuilt
+  // whenever size/pause/over changes so it never ticks while paused or
+  // after a collision.
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const cell = size / GRID;
+    let timeoutId = null;
 
     function draw() {
       ctx.clearRect(0, 0, size, size);
@@ -117,20 +125,31 @@ export default function Play({ g }) {
       const next = { x: head.x + dirRef.current.x, y: head.y + dirRef.current.y };
       const hitWall = next.x < 0 || next.y < 0 || next.x >= GRID || next.y >= GRID;
       const hitSelf = snakeRef.current.some((s) => s.x === next.x && s.y === next.y);
-      if (hitWall || hitSelf) { setGameOver(true); return; }
+      if (hitWall || hitSelf) {
+        if (soundEnabled(student, profile)) playSnakeOver();
+        setGameOver(true);
+        return;
+      }
       const ate = next.x === foodRef.current.x && next.y === foodRef.current.y;
       const body = [next, ...snakeRef.current];
       if (!ate) body.pop();
-      else { scoreRef.current += 1; setScore(scoreRef.current); foodRef.current = randCell(body); }
+      else {
+        scoreRef.current += 1;
+        setScore(scoreRef.current);
+        foodRef.current = randCell(body);
+        speedRef.current = Math.max(MIN_TICK_MS, speedRef.current - SPEEDUP_MS);
+        if (soundEnabled(student, profile)) playSnakeEat();
+      }
       snakeRef.current = body;
       draw();
+      timeoutId = setTimeout(step, speedRef.current);
     }
 
     draw();
     if (gameOver || paused) return;
-    const id = setInterval(step, TICK_MS);
-    return () => clearInterval(id);
-  }, [size, gameOver, paused]);
+    timeoutId = setTimeout(step, speedRef.current);
+    return () => clearTimeout(timeoutId);
+  }, [size, gameOver, paused, student, profile]);
 
   React.useEffect(() => {
     if (gameOver && !reportedRef.current) {

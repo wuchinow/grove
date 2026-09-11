@@ -84,6 +84,7 @@ export function useGrove() {
   // so nothing downstream changes.
   const [auth, setAuth] = useState({ status: "loading", username: "", role: "student" });
   const [authCard, setAuthCard] = useState(null);     // null | "welcome" | "signin" | "signup"
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -563,5 +564,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleFile, handleTopic, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }

@@ -50,6 +50,16 @@ export function playSessionComplete() {
   tone(659, 0.22, 0.18);
 }
 
+// Snake gets minimal sound, same family/volume as everything above - not a
+// separate game-audio system. One blip on eating, a soft descent on game over.
+export function playSnakeEat() {
+  tone(587, 0.08, 0, 0.045);
+}
+export function playSnakeOver() {
+  tone(392, 0.14, 0);
+  tone(294, 0.2, 0.1);
+}
+
 // ---- preference -------------------------------------------------------------
 // Signed-in and legacy students keep this on their Supabase profile
 // (profile.soundOn); a guest has no profile, so it lives in localStorage
