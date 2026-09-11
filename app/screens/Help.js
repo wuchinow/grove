@@ -32,7 +32,7 @@ export default function Help({ g }) {
 
         <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <Step title="1. Add what you're studying">
-            Type a topic, or share photos, PDFs, Word docs, text files, or a web page. Grove pulls out the key ideas and plants a tree for each one.
+            Type a topic or paste a URL, or share photos, PDFs, Word docs, or text files. Grove pulls out the key ideas and plants a tree for each one.
           </Step>
           <Step title="2. Tend a tree">
             Tap any tree to start a session: one concept, about 4 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.

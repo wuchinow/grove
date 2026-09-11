@@ -39,7 +39,6 @@ export function useGrove() {
   const [setupAvatar, setSetupAvatar] = useState(""); // data URL, seeded from profile.avatar when editing
   const [editingProfile, setEditingProfile] = useState(false);
   const [topicText, setTopicText] = useState("");
-  const [urlText, setUrlText] = useState("");
   const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic" | "pdf" | "docx" | "txt" | "url", drives Processing's copy
   const [processingStage, setProcessingStage] = useState(""); // "" | "reading" | "structuring" | "extracting", Processing's long-wait caption for document sources
   const [sections, setSections] = useState([]); // [{title, note, start, end}] for the Sections screen, a long document's picked slice
@@ -378,6 +377,25 @@ export function useGrove() {
     }
   }
 
+  // Starts with http(s), or has no whitespace and a dot followed by letters
+  // (a bare domain like "en.wikipedia.org/..."): a deliberately simple
+  // shape-based check, not a URL parser - anything else is a topic.
+  function looksLikeUrl(s) {
+    const t = s.trim();
+    if (/^https?:\/\//i.test(t)) return true;
+    return !/\s/.test(t) && /\.[a-z]{2,}/i.test(t);
+  }
+
+  // The merged study field's one submit path: dispatches to the existing
+  // handleTopic or handleUrl, which are otherwise unchanged.
+  function handleStudy(raw) {
+    const val = (raw ?? topicText).trim();
+    if (!val) return;
+    setTopicText("");
+    if (looksLikeUrl(val)) handleUrl(val);
+    else handleTopic(val);
+  }
+
   // Dispatched from the one "Share your work" file input, which now accepts
   // photos alongside PDF/DOCX/TXT: an all-image selection keeps the existing
   // multi-page photo flow, anything else is a single document.
@@ -433,11 +451,10 @@ export function useGrove() {
 
   // Plain web URLs: fetched and stripped to text server-side (see
   // /api/extract-file), same pipeline from there on as any other document.
-  async function handleUrl(raw) {
-    const url = (raw ?? urlText).trim();
+  async function handleUrl(url) {
     if (!url) return;
     pendingSource.current = null; docRef.current = null;
-    setError(""); setUrlText(""); setSourceMode("url"); setScreen("processing"); setProcessingStage("reading");
+    setError(""); setSourceMode("url"); setScreen("processing"); setProcessingStage("reading");
     try {
       const r = await fetch("/api/extract-file", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "url", url }) });
       const j = await r.json().catch(() => null);
@@ -758,5 +775,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleTopic, handleUrl, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setUrlText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery, urlText };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleStudy, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }

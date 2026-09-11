@@ -12,7 +12,7 @@ import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleShare, handleTopic, handleUrl, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, setUrlText, startPreview, startSession, studyEverything, student, topicText, urlText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleShare, handleStudy, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -37,6 +37,15 @@ export default function Home({ g }) {
     return () => window.removeEventListener("resize", updateScrollState);
   }, [updateScrollState]);
   const scrolls = canScrollLeft || canScrollRight;
+
+  // No explicit `behavior` here on purpose: `.noscroll`'s scroll-behavior in
+  // theme.js governs smooth-vs-instant, and already flips to instant under
+  // the OS reduced-motion setting - the one place this app makes that call.
+  function scrollTreeRow(dir) {
+    const el = treeRowRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
+  }
 
   // With exactly one grove, open it silently: no decision to make, so this
   // just resumes where they left off, matching the original single-grove
@@ -126,13 +135,13 @@ export default function Home({ g }) {
                   shows follows the real scroll position: only right at the
                   start, only left at the end, both in between, none if
                   everything already fits. */}
-              <div style={{ width: 22, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden" }}>
+              <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden", cursor: canScrollLeft ? "pointer" : "default" }}>
                 <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
-              </div>
+              </button>
               <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions &middot; Greener = you know it better</div>
-              <div style={{ width: 22, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden" }}>
+              <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden", cursor: canScrollRight ? "pointer" : "default" }}>
                 <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
-              </div>
+              </button>
             </div>
           ) : (
             <>
@@ -169,11 +178,11 @@ export default function Home({ g }) {
                 <input
                   value={topicText}
                   onChange={(e) => setTopicText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleTopic(); }}
-                  placeholder="Photosynthesis, the Krebs cycle, causes of WWI…"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleStudy(); }}
+                  placeholder="A topic, or paste a URL"
                   style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
                 />
-                <button onClick={() => handleTopic()} disabled={!topicText.trim()} aria-label="Break this topic down" style={{ border: "none", cursor: topicText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: topicText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
+                <button onClick={() => handleStudy()} disabled={!topicText.trim()} aria-label="Study this" style={{ border: "none", cursor: topicText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: topicText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "13px 2px 12px" }}>
@@ -186,28 +195,11 @@ export default function Home({ g }) {
                 <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="file" size={18} color={C.primaryDeep} /></span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Share your work</span>
-                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Photos, PDFs, Word docs, text files, or a web page</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Photos, PDFs, Word docs, or text files</span>
                 </span>
               </button>
             </div>
             <input ref={fileRef} type="file" accept="image/*,.pdf,.docx,.txt,text/plain,application/pdf" multiple onChange={handleShare} style={{ display: "none" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "13px 2px 12px" }}>
-              <div style={{ flex: 1, height: 1, background: C.line }} />
-              <div style={{ fontSize: 11, fontWeight: 800, color: C.stone, letterSpacing: ".06em" }}>OR</div>
-              <div style={{ flex: 1, height: 1, background: C.line }} />
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={urlText}
-                onChange={(e) => setUrlText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleUrl(); }}
-                placeholder="Paste a URL"
-                style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
-              />
-              <button onClick={() => handleUrl()} disabled={!urlText.trim()} aria-label="Read this page" style={{ border: "none", cursor: urlText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: urlText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="link" size={18} color="#FCEFE4" /></button>
-            </div>
 
             {!has && !hideSample && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>

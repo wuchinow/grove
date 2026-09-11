@@ -32,6 +32,7 @@ export const FONTS = `
 .fullvh{height:100vh;height:100dvh}
 .minvh{min-height:100vh;min-height:100dvh}
 .noscroll::-webkit-scrollbar{display:none}
+.noscroll{scroll-behavior:smooth}
 .treeLabel{
   margin-top:4px; width:100%; box-sizing:border-box;
   padding:3px 6px; border-radius:8px;
@@ -43,6 +44,7 @@ export const FONTS = `
 @media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }
 @media (prefers-reduced-motion: reduce){
   .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
+  .noscroll{scroll-behavior:auto}
 }
 .groveHeaderIcon{display:grid;place-items:center}
 .groveHeaderName{font-size:19px;max-width:150px;min-width:44px}
