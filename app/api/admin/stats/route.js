@@ -17,7 +17,7 @@ export async function GET() {
   const [sRes, gRes, tRes] = await Promise.all([
     fetch(`${c.rest}/students?select=student_id,auth_user_id,created_at,updated_at`, { headers: c.db, cache: "no-store" }),
     fetch(`${c.rest}/groves?select=student_id,concepts,updated_at`, { headers: c.db, cache: "no-store" }),
-    fetch(`${c.rest}/turns?created_at=gte.${encodeURIComponent(cutoff)}&select=created_at,kind,model,input_tokens,output_tokens,ok`, { headers: c.db, cache: "no-store" }),
+    fetch(`${c.rest}/turns?created_at=gte.${encodeURIComponent(cutoff)}&select=created_at,kind,model,input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens,ok`, { headers: c.db, cache: "no-store" }),
   ]);
   if (!sRes.ok || !gRes.ok) return Response.json({ error: "Database read failed." }, { status: 502 });
   const students = await sRes.json();
@@ -31,11 +31,11 @@ export async function GET() {
   const activeIds = (days) => new Set(groves.filter((g) => within(g.updated_at, days)).map((g) => g.student_id)).size;
 
   // Usage/cost, last 30 days. Cost is an estimate from list pricing (see
-  // /lib/pricing.js) - actual billing may run a little lower with caching,
-  // which Grove doesn't currently use. `|| 0` also guarantees a row for a
-  // model with no pricing entry (e.g. kind "game", model "snake") is
-  // counted as a call but never contributes a null to any sum below.
-  const costOf = (t) => estCost(t.model, t.input_tokens, t.output_tokens) || 0;
+  // /lib/pricing.js), including cached tokens at their discounted/premium
+  // rates. `|| 0` also guarantees a row for a model with no pricing entry
+  // (e.g. kind "game", model "snake") is counted as a call but never
+  // contributes a null to any sum below.
+  const costOf = (t) => estCost(t.model, t.input_tokens, t.output_tokens, t.cache_read_input_tokens, t.cache_creation_input_tokens) || 0;
   const sumWithin = (days) => {
     const rows = turns.filter((t) => within(t.created_at, days));
     return {

@@ -50,7 +50,13 @@ export function useGrove() {
   // Sections screen is up, so picking one can slice locally without a resend.
   const docRef = useRef(null);
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
-  const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName }, parked during a preview
+  const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName, loadedGroveId }, parked during a preview
+  // Autosave debounce bookkeeping (see the effect below): saveDeadline caps how
+  // long a burst of rapid changes can keep deferring the actual save; pendingSave
+  // holds the exact payload still waiting to go out, so a page-hide/pagehide
+  // listener can flush it immediately instead of losing it to page teardown.
+  const saveDeadline = useRef(null);
+  const pendingSave = useRef(null);
 
   // Multiple groves per person. `groves` is the light list (id, name, tree
   // count) for the switcher; opening one loads its full concepts. For an
@@ -59,6 +65,12 @@ export function useGrove() {
   const [grovesLoaded, setGrovesLoaded] = useState(false);
   const [activeGroveId, setActiveGroveId] = useState(null);
   const [activeGroveName, setActiveGroveName] = useState("");
+  // Set only once a grove's concepts are known-good in state (a fetch that
+  // resolved, a local/guest grove, or a grove just created). The autosave
+  // effect below requires this to match activeGroveId before it's allowed to
+  // fire, so a save scheduled while a grove is mid-load can never land - the
+  // race that wiped Asher's grove (Sep 8) and Phil's (today).
+  const [loadedGroveId, setLoadedGroveId] = useState(null);
   const [newGroveName, setNewGroveName] = useState("");
   const [showNewGrove, setShowNewGrove] = useState(false);
   const localGroves = useRef({});
@@ -224,17 +236,59 @@ export function useGrove() {
   }, [profile, student, loaded]);
 
   // Save the open grove's concepts whenever they change (debounced), for a
-  // named student only.
+  // named student only. Never sends allowEmpty - clearGrove() and removeTree()
+  // send their own immediate, explicit request for that (see below), so any
+  // other path that lands on an empty array is refused server-side.
+  //
+  // Debounced, but capped: a burst of rapid changes (e.g. studying the same
+  // concept back-to-back) keeps resetting a flat 800ms timer indefinitely,
+  // which is exactly what let Phil's grove sit unsaved for minutes today even
+  // though sessions kept completing. saveDeadline bounds how long a single
+  // burst can defer the actual write to ~4s from its first change.
   useEffect(() => {
-    if (!student || !loaded || preview || !activeGroveId) return;
+    if (!student || !loaded || preview || !activeGroveId || loadedGroveId !== activeGroveId) return;
+    const now = Date.now();
+    if (!saveDeadline.current) saveDeadline.current = now + 4000;
+    const wait = Math.min(800, Math.max(0, saveDeadline.current - now));
     setSaveState("saving");
+    const payload = { student, id: activeGroveId, name: activeGroveName, concepts };
+    pendingSave.current = payload;
     const t = setTimeout(() => {
-      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, name: activeGroveName, concepts }) })
+      saveDeadline.current = null;
+      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
         .then((r) => setSaveState(r.ok ? "saved" : "error"))
-        .catch(() => setSaveState("error"));
-    }, 800);
+        .catch(() => setSaveState("error"))
+        .finally(() => { if (pendingSave.current === payload) pendingSave.current = null; });
+    }, wait);
     return () => clearTimeout(t);
-  }, [concepts, student, loaded, preview, activeGroveId, activeGroveName]);
+  }, [concepts, student, loaded, preview, activeGroveId, activeGroveName, loadedGroveId]);
+
+  // Safety net for the gap above: if the tab closes, the app is backgrounded,
+  // or the page otherwise tears down before the debounced save fires, whatever
+  // is still in pendingSave would be lost to a normal fetch. sendBeacon is
+  // built to survive exactly this; it's POST-only, so /api/grove aliases POST
+  // to the same handler as PUT. Falls back to a keepalive fetch if sendBeacon
+  // isn't available. The scheduled timeout above is left alone - if the page
+  // doesn't actually go away, it still fires and harmlessly re-sends the same
+  // (idempotent, full-snapshot) payload.
+  useEffect(() => {
+    function flush() {
+      const payload = pendingSave.current;
+      if (!payload) return;
+      pendingSave.current = null;
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/grove", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+        } else {
+          fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+        }
+      } catch {}
+    }
+    function onVisibility() { if (document.visibilityState === "hidden") flush(); }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("pagehide", flush); };
+  }, []);
 
   // The anonymous equivalent: keep the in-memory copy of the open grove in
   // sync as it's edited, so switching away and back doesn't lose the work.
@@ -252,9 +306,17 @@ export function useGrove() {
       setActiveGroveId(id);
       setActiveGroveName(entry ? entry.name : "");
       setConcepts(localGroves.current[id] || []);
+      setLoadedGroveId(id);
       setGrewIds([]); setSelected(null); setScreen("home");
       return;
     }
+    // Block autosave for the duration of the load, even if activeGroveId is
+    // switched again before this fetch resolves (loadedGroveId then won't
+    // match whatever id is active by the time it settles, so a late response
+    // can't write a stale/empty snapshot over a grove the student has since
+    // moved away from, or into).
+    setLoadedGroveId(null);
+    saveDeadline.current = null;
     setActiveGroveId(id);
     setActiveGroveName(entry ? entry.name : "");
     setConcepts([]); setGrewIds([]); setSelected(null);
@@ -266,7 +328,7 @@ export function useGrove() {
       // effect below would then write that empty array back over real data
       // 800ms later. Bail out to the grove list instead of pretending this
       // grove is legitimately empty.
-      if (j) { setConcepts(Array.isArray(j.concepts) ? j.concepts : []); setActiveGroveName(j.name || (entry ? entry.name : "")); }
+      if (j) { setConcepts(Array.isArray(j.concepts) ? j.concepts : []); setActiveGroveName(j.name || (entry ? entry.name : "")); setLoadedGroveId(id); }
       else { setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again."); }
     } catch {
       setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again.");
@@ -285,7 +347,7 @@ export function useGrove() {
       localGroves.current[id] = seed;
       setGroves((prev) => [{ id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
       setNewGroveName(""); setShowNewGrove(false);
-      setActiveGroveId(id); setActiveGroveName(name);
+      setActiveGroveId(id); setActiveGroveName(name); setLoadedGroveId(id);
       setConcepts(seed); setGrewIds([]); setSelected(null);   // never leave the previous grove's trees sitting in state
       return id;
     }
@@ -300,7 +362,7 @@ export function useGrove() {
       if (!j || !j.id) return null;
       setGroves((prev) => [{ id: j.id, name, treeCount: seed.length, flourishing: seed.filter((c) => c.mastery >= 85).length }, ...prev]);
       setNewGroveName(""); setShowNewGrove(false);
-      setActiveGroveId(j.id); setActiveGroveName(name);
+      setActiveGroveId(j.id); setActiveGroveName(name); setLoadedGroveId(j.id);
       setConcepts(seed); setGrewIds([]); setSelected(null);   // never leave the previous grove's trees sitting in state
       return j.id;
     } catch { return null; }
@@ -558,14 +620,15 @@ export function useGrove() {
   }
 
   function startPreview() {
-    stash.current = { concepts, activeGroveId, activeGroveName };
+    stash.current = { concepts, activeGroveId, activeGroveName, loadedGroveId };
     setConcepts(SAMPLE.concepts.map((c) => ({ id: uid(), name: c.name, note: c.note, mastery: c.mastery, days: c.days, reviews: c.days })));
     setActiveGroveId(null); setActiveGroveName("Sample grove");
     setPreview(true); setSelected(null); setGrewIds([]); setScreen("home");
   }
   function exitPreview() {
-    const prev = stash.current || { concepts: [], activeGroveId: null, activeGroveName: "" };
-    setConcepts(prev.concepts); setActiveGroveId(prev.activeGroveId); setActiveGroveName(prev.activeGroveName);
+    const prev = stash.current || { concepts: [], activeGroveId: null, activeGroveName: "", loadedGroveId: null };
+    setConcepts(prev.concepts); setActiveGroveId(prev.activeGroveId); setActiveGroveName(prev.activeGroveName); setLoadedGroveId(prev.loadedGroveId);
+    saveDeadline.current = null;
     stash.current = null;
     setPreview(false); setSelected(null); setGrewIds([]); setScreen("home");
   }
@@ -576,14 +639,26 @@ export function useGrove() {
     if (i >= 5) return "Fully grown. Come back to it whenever you want to keep it green.";
     return `Finish one more session to become a ${stages[i + 1]}.`;
   }
+  // Going to zero trees is the one legitimate reason to overwrite a non-empty
+  // concepts array with an empty one, so these two send allowEmpty explicitly
+  // and immediately - outside the debounced autosave effect, which never
+  // sends it - so a later unrelated re-render within the debounce window can
+  // never cancel or drop the deliberate write.
+  function persistEmptyGrove() {
+    if (!student || !activeGroveId) return;
+    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, concepts: [], allowEmpty: true }) }).catch(() => {});
+  }
   function clearGrove() {
     if (!window.confirm("Clear every tree in this grove? This can't be undone.")) return;
     setConcepts([]); setGrewIds([]); setSelected(null);
+    persistEmptyGrove();
   }
   function removeTree(id) {
     const c = concepts.find((x) => x.id === id);
     if (!c || !window.confirm(`Remove "${c.name}" from your grove?`)) return;
-    setConcepts((prev) => prev.filter((x) => x.id !== id)); setSelected(null);
+    const next = concepts.filter((x) => x.id !== id);
+    setConcepts(next); setSelected(null);
+    if (next.length === 0) persistEmptyGrove();
   }
 
   // Confirming a fresh batch of concepts. If no grove is open, this is the
@@ -613,8 +688,18 @@ export function useGrove() {
       setConcepts(fresh);
       all = fresh;
     } else {
-      all = [...concepts, ...fresh];
-      setConcepts(all);
+      // Merge server-side against the row's own current concepts, rather than
+      // trusting local state (which may not be fully settled yet) to already
+      // be complete - same race class as the load race above.
+      try {
+        const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, append: fresh }) });
+        const j = r.ok ? await r.json() : null;
+        if (!j || !Array.isArray(j.concepts)) { setError("Couldn't add to this grove. Try again."); setScreen("home"); return; }
+        all = j.concepts;
+        setConcepts(all);
+      } catch {
+        setError("Couldn't add to this grove. Try again."); setScreen("home"); return;
+      }
     }
     pendingSource.current = null; docRef.current = null;
     plantAndStart(fresh.map((c) => c.id), all);
@@ -696,7 +781,7 @@ export function useGrove() {
     if (!isMalformed(j)) return { text, j };
     try {
       const nudge = "(That reply had no question and no options - every non-final turn must leave the student something to act on. Try again with a question.)";
-      const retryText = await callAPI([...msgsForApi, { role: "assistant", content: text }, { role: "user", content: nudge }], system, "tutor");
+      const retryText = await callAPI([...msgsForApi, { role: "assistant", content: text }, { role: "user", content: nudge }], system, "tutor-retry");
       const retryJ = parseJSON(retryText);
       if (retryJ && !isMalformed(retryJ)) return { text: retryText, j: retryJ };
     } catch {}

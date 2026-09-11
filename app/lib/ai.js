@@ -8,8 +8,10 @@
 // a multi-turn tutor session gets progressively cheaper as it grows instead of
 // re-billing the whole conversation at full price every turn (5-minute TTL).
 // Adaptive thinking is left at its default (on); max_tokens is raised to 2000
-// to give it room without truncating the JSON reply. Drop to a lower effort
-// only if testing shows thinking tokens crowding out the response.
+// to give it room without truncating the JSON reply. Tutor turns (kind
+// "tutor"/"tutor-retry") run at output_config effort "low" for latency -
+// extraction, topic breakdown, and sections keep the default effort, since
+// those aren't on the student's live typing-to-reply path.
 function withCacheBreakpoint(content) {
   const block = typeof content === "string" ? { type: "text", text: content } : { ...content };
   return { ...block, cache_control: { type: "ephemeral" } };
@@ -22,6 +24,7 @@ export async function callAPI(messages, system, kind) {
       : [withCacheBreakpoint(m.content)];
     return { ...m, content };
   });
+  const isTutorTurn = kind === "tutor" || kind === "tutor-retry";
   const res = await fetch("/api/anthropic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -30,6 +33,7 @@ export async function callAPI(messages, system, kind) {
       max_tokens: 2000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: cachedMessages,
+      ...(isTutorTurn ? { output_config: { effort: "low" } } : {}),
       kind,
     }),
   });

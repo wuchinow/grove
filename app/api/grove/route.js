@@ -39,10 +39,43 @@ export async function PUT(request) {
   if (hasConcepts && body.concepts.length > 500) return Response.json({ error: "Too many concepts." }, { status: 400 });
 
   if (body.id) {
+    // Adding to an existing grove: merge server-side against the row's own
+    // current concepts instead of trusting a client-computed array, which may
+    // not reflect a load that hasn't fully settled yet.
+    if (Array.isArray(body.append)) {
+      const cur = await fetch(`${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}&select=concepts`, { headers: c.db, cache: "no-store" });
+      const curRows = cur.ok ? await cur.json() : [];
+      if (!curRows[0]) return Response.json({ error: "Grove not found." }, { status: 404 });
+      const merged = [...(Array.isArray(curRows[0].concepts) ? curRows[0].concepts : []), ...body.append];
+      if (merged.length > 500) return Response.json({ error: "Too many concepts." }, { status: 400 });
+      const patch = { concepts: merged, updated_at: new Date().toISOString() };
+      if (name !== undefined) patch.name = name;
+      const res = await fetch(`${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}`, {
+        method: "PATCH",
+        headers: { ...c.db, Prefer: "return=minimal" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) return Response.json({ error: "Database write failed." }, { status: 502 });
+      return Response.json({ ok: true, id: body.id, concepts: merged });
+    }
+
     // Update an existing grove. Omitting concepts allows a rename-only call.
+    // A non-empty concepts array is never replaced with an empty one unless
+    // the caller explicitly says allowEmpty (only clearGrove()/removeTree()'s
+    // own direct calls do) - this is the other half of the fix for the Sep 8
+    // and Sep 11 grove-wipe incidents (see useGrove.js): the column is simply
+    // left untouched rather than erroring, so e.g. a same-request rename still
+    // applies, and the client's save indicator doesn't show a false error for
+    // the safety net doing its job.
     const patch = { updated_at: new Date().toISOString() };
     if (name !== undefined) patch.name = name;
-    if (hasConcepts) patch.concepts = body.concepts;
+    if (hasConcepts) {
+      if (body.concepts.length === 0 && !body.allowEmpty) {
+        console.error(`[grove-guard] refused empty-concepts overwrite grove=${body.id} student=${student}`);
+      } else {
+        patch.concepts = body.concepts;
+      }
+    }
     const res = await fetch(`${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}`, {
       method: "PATCH",
       headers: { ...c.db, Prefer: "return=minimal" },
@@ -81,6 +114,11 @@ export async function PUT(request) {
   const rows = await res.json();
   return Response.json({ ok: true, id: rows[0] && rows[0].id });
 }
+
+// navigator.sendBeacon (the autosave flush-on-hide safety net in useGrove.js)
+// can only send POST, never PUT - alias it to the same handler rather than
+// duplicating the logic.
+export const POST = PUT;
 
 export async function DELETE(request) {
   const c = cfg();

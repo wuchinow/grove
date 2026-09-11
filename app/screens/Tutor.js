@@ -128,20 +128,33 @@ function ProgressBar({ chat, phase }) {
 
 // Tracks the real visible viewport on iOS Safari, where the keyboard shrinks
 // window.innerHeight's usable area without firing a resize the way 100dvh
-// alone can react to in time. Falls back to null (letting the .fullvh CSS
-// class's 100dvh do the work) wherever visualViewport isn't available.
-function useVisualViewportHeight() {
-  const [h, setH] = React.useState(null);
+// alone can react to in time. Falls back to {height:null, offsetTop:0}
+// (letting the .fullvh CSS class's 100dvh do the work) wherever
+// visualViewport isn't available.
+//
+// offsetTop matters as much as height: when the keyboard opens, iOS Safari
+// scrolls the layout viewport to keep the focused input visible, which
+// desyncs a plain `top: 0` fixed element from the now-shrunk visual
+// viewport - the input row jumps to the top of the screen with a blank gap
+// below it where the keyboard covers what used to be there. Pinning both
+// top and height to the visual viewport, and holding the layout viewport
+// at (0,0) on every update, keeps the fixed wrapper exactly where the
+// visible area actually is.
+function useVisualViewport() {
+  const [state, setState] = React.useState({ height: null, offsetTop: 0 });
   React.useEffect(() => {
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     if (!vv) return;
-    const update = () => setH(vv.height);
+    const update = () => {
+      setState({ height: vv.height, offsetTop: vv.offsetTop });
+      window.scrollTo(0, 0);
+    };
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
     return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
   }, []);
-  return h;
+  return state;
 }
 
 // The controls for the live turn: answer options (if any) plus the always-
@@ -173,7 +186,7 @@ export default function Tutor({ g }) {
   const lastTutor = [...chat].reverse().find((m) => m.who === "tutor");
   const lastIsLiveTurn = chat.length > 0 && chat[chat.length - 1].who === "tutor" && !done;
   const opts = lastIsLiveTurn && Array.isArray(lastTutor.options) ? lastTutor.options : [];
-  const vvh = useVisualViewportHeight();
+  const vv = useVisualViewport();
   const lastTutorRef = React.useRef(null);
   const [showMore, setShowMore] = React.useState(false);
 
@@ -209,7 +222,7 @@ export default function Tutor({ g }) {
 
   return (
     <Shell>
-      <div className="fullvh" style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 600, height: vvh ? `${vvh}px` : undefined, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div className="fullvh" style={{ position: "fixed", top: vv.offsetTop || 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 600, height: vv.height ? `${vv.height}px` : undefined, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "14px 18px 12px", background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={leaveSession} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>← Back to my grove</button>

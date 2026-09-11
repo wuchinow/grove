@@ -18,8 +18,8 @@ export async function POST(request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  // `kind` ("extract" | "topic" | "tutor") labels the call for the admin
-  // usage dashboard and isn't part of the Anthropic API payload.
+  // `kind` ("extract" | "topic" | "tutor" | "tutor-retry") labels the call
+  // for the admin usage dashboard and isn't part of the Anthropic API payload.
   const { kind, ...anthropicBody } = body;
 
   let res;
@@ -64,6 +64,8 @@ async function logTurn(kind, model, data, ok) {
       model: model || "unknown",
       input_tokens: (usage && usage.input_tokens) || 0,
       output_tokens: (usage && usage.output_tokens) || 0,
+      cache_read_input_tokens: (usage && usage.cache_read_input_tokens) || 0,
+      cache_creation_input_tokens: (usage && usage.cache_creation_input_tokens) || 0,
       ok: !!ok,
     }),
   });

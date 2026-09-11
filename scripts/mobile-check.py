@@ -80,7 +80,7 @@ def run(base_url: str, out_dir: Path):
 
             page.screenshot(path=str(out_dir / f"home-{width}.png"), full_page=True)
 
-            topic_input = page.get_by_placeholder("Photosynthesis, the Krebs cycle, causes of WWI…")
+            topic_input = page.get_by_placeholder("A topic, or paste a URL")
             topic_input.fill("Test topic")
             topic_input.press("Enter")
             page.wait_for_selector("text=Here's what I found", timeout=10000)
