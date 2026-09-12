@@ -35,13 +35,13 @@ export const FONTS = `
 .noscroll{scroll-behavior:smooth}
 .treeLabel{
   margin-top:4px; width:100%; box-sizing:border-box;
-  padding:3px 6px; border-radius:8px;
+  padding:4px 6px; border-radius:8px;
   background:rgba(38,22,11,.62);
-  color:#FDF4E4; font-size:10.5px; font-weight:800; line-height:1.2;
-  text-align:center; overflow:hidden; hyphens:auto;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  color:#FDF4E4; font-size:10.5px; font-weight:600; line-height:1.25;
+  text-align:center; overflow:hidden; overflow-wrap:anywhere; hyphens:auto;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
 }
-@media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:2px 5px } }
+@media (max-width:420px){ .treeLabel{ font-size:9.5px; padding:3px 5px } }
 @media (prefers-reduced-motion: reduce){
   .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
   .noscroll{scroll-behavior:auto}
