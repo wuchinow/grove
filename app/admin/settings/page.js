@@ -78,8 +78,14 @@ export default function SettingsPage() {
   const [costs, setCosts] = React.useState([]);
   const [price, setPrice] = React.useState("4");
   const [tuning, setTuning] = React.useState(DEFAULT_SETTINGS);
+  // The last-loaded/saved snapshot, kept separate from the live-editing
+  // `tuning` state above so a diff against it can drive the sticky Save bar
+  // below - a pill or stepper tap changes `tuning` instantly, but nothing
+  // persists until that diff is actually saved.
+  const [savedTuning, setSavedTuning] = React.useState(DEFAULT_SETTINGS);
   const [changeLog, setChangeLog] = React.useState([]);
   const [saveMsg, setSaveMsg] = React.useState("");
+  const [tuningSaveMsg, setTuningSaveMsg] = React.useState("");
 
   async function load() {
     try {
@@ -89,6 +95,7 @@ export default function SettingsPage() {
       setCosts(Array.isArray(j.fixed_costs) ? j.fixed_costs : []);
       setPrice(String(j.price_per_month ?? 4));
       setTuning(j.tuning || DEFAULT_SETTINGS);
+      setSavedTuning(j.tuning || DEFAULT_SETTINGS);
       setChangeLog(Array.isArray(j.changeLog) ? j.changeLog : []);
       setState("ok");
     } catch { setState("error"); }
@@ -97,6 +104,17 @@ export default function SettingsPage() {
 
   function setTuningField(key, value) {
     setTuning((prev) => ({ ...prev, [key]: value }));
+  }
+  const tuningDirty = Object.keys(DEFAULT_SETTINGS).some((k) => tuning[k] !== savedTuning[k]);
+
+  async function saveTuning() {
+    setTuningSaveMsg("");
+    try {
+      const r = await fetch("/api/admin/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tuning }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { setTuningSaveMsg("Saved."); load(); }
+      else setTuningSaveMsg(j.error || "Couldn't save.");
+    } catch { setTuningSaveMsg("Couldn't save."); }
   }
   function updateRow(id, patch) {
     setCosts((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -149,6 +167,13 @@ export default function SettingsPage() {
         <TuningRow label="Sample grove preview">
           <Pills options={[{ value: true, label: "On" }, { value: false, label: "Off" }]} value={tuning.sample_grove} onChange={(v) => setTuningField("sample_grove", v)} />
         </TuningRow>
+        {tuningDirty && (
+          <div style={{ position: "sticky", bottom: 12, marginTop: 14, display: "flex", alignItems: "center", gap: 12, background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "10px 14px", boxShadow: "0 10px 26px rgba(40,24,12,.2)" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: C.sub, flex: 1 }}>Unsaved Tuning changes</span>
+            <button onClick={saveTuning} style={{ border: "none", cursor: "pointer", padding: "8px 16px", borderRadius: 12, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 13.5, fontFamily: "inherit" }}>Save</button>
+            {tuningSaveMsg && <span style={{ fontSize: 12.5, fontWeight: 700, color: tuningSaveMsg === "Saved." ? C.sageDeep : "#9A4A28" }}>{tuningSaveMsg}</span>}
+          </div>
+        )}
       </Card>
 
       <H>Change log</H>
