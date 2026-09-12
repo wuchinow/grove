@@ -31,7 +31,11 @@ export default function Play({ g }) {
   const [size, setSize] = React.useState(320);
   const [score, setScore] = React.useState(0);
   const [gameOver, setGameOver] = React.useState(false);
-  const [paused, setPaused] = React.useState(false);
+  // "start" (pre-play, Play button + best score) | "playing" | "paused".
+  // gameOver is kept separate - a terminal outcome of play, not a mode -
+  // so the three overlay conditions (phase==="start", phase==="paused",
+  // gameOver) are always mutually exclusive.
+  const [phase, setPhase] = React.useState("start");
 
   const snakeRef = React.useRef([]);
   const dirRef = React.useRef({ x: 1, y: 0 });
@@ -50,6 +54,8 @@ export default function Play({ g }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  // Resets the board only - phase is set by whichever caller invokes this,
+  // since mount, Play, and Restart each want a different resulting phase.
   function reset() {
     snakeRef.current = [{ x: 8, y: 8 }, { x: 7, y: 8 }, { x: 6, y: 8 }];
     dirRef.current = { x: 1, y: 0 };
@@ -60,11 +66,18 @@ export default function Play({ g }) {
     reportedRef.current = false;
     setScore(0);
     setGameOver(false);
-    setPaused(false);
   }
+  // Seeds a valid board under the start overlay on first paint; phase stays
+  // "start" until Play is tapped.
   React.useEffect(reset, []);
 
+  function handlePlay() { reset(); setPhase("playing"); }
+  function handlePause() { setPhase("paused"); }
+  function handleResume() { setPhase("playing"); }
+  function handleRestart() { reset(); setPhase("playing"); }
+
   function turn(dx, dy) {
+    if (phase !== "playing") return; // ignore input queued from an idle overlay
     const d = dirRef.current;
     if (d.x === -dx && d.y === -dy) return; // ignore reversing into yourself
     nextDirRef.current = { x: dx, y: dy };
@@ -82,9 +95,10 @@ export default function Play({ g }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Pause the loop when the tab/app is backgrounded.
+  // Pause the loop when the tab/app is backgrounded - never auto-resume,
+  // that's the user's own Resume tap.
   React.useEffect(() => {
-    function onVis() { setPaused(document.hidden); }
+    function onVis() { if (document.hidden) setPhase((p) => (p === "playing" ? "paused" : p)); }
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
@@ -146,10 +160,10 @@ export default function Play({ g }) {
     }
 
     draw();
-    if (gameOver || paused) return;
+    if (phase !== "playing" || gameOver) return;
     timeoutId = setTimeout(step, speedRef.current);
     return () => clearTimeout(timeoutId);
-  }, [size, gameOver, paused, student, profile]);
+  }, [size, gameOver, phase, student, profile]);
 
   React.useEffect(() => {
     if (gameOver && !reportedRef.current) {
@@ -172,7 +186,12 @@ export default function Play({ g }) {
     <Shell>
       <div style={{ padding: "20px 20px 30px", flex: 1, display: "flex", flexDirection: "column", overscrollBehavior: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <button onClick={() => setScreen("home")} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>&larr; My grove</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => setScreen("home")} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>&larr; My grove</button>
+            {phase === "playing" && (
+              <button onClick={handlePause} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>Pause</button>
+            )}
+          </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>Score {score}</div>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: C.sub }}>Best {Math.max(best, score)}</div>
@@ -183,11 +202,27 @@ export default function Play({ g }) {
 
         <div ref={wrapRef} style={{ marginTop: 16, width: "100%", maxWidth: 360, marginLeft: "auto", marginRight: "auto", position: "relative" }}>
           <canvas ref={canvasRef} width={size} height={size} style={{ width: size, height: size, borderRadius: 18, boxShadow: "0 8px 24px rgba(58,42,32,.12)", touchAction: "none" }} />
+          {phase === "start" && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Take a break</div>
+              <div style={{ color: "#FCEFE4", fontSize: 13, fontWeight: 700 }}>Best {best}</div>
+              <button onClick={handlePlay} style={{ marginTop: 6, border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Play</button>
+            </div>
+          )}
+          {phase === "paused" && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Paused</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <button onClick={handleResume} style={{ border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Resume</button>
+                <button onClick={handleRestart} style={{ border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: C.soft, color: C.primaryDeep, fontWeight: 800, fontSize: 14 }}>Restart</button>
+              </div>
+            </div>
+          )}
           {gameOver && (
             <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
               <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Game over</div>
               <div style={{ color: "#FCEFE4", fontSize: 13, fontWeight: 700 }}>Score {score} · Best {Math.max(best, score)}</div>
-              <button onClick={reset} style={{ marginTop: 6, border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Play again</button>
+              <button onClick={handleRestart} style={{ marginTop: 6, border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Play again</button>
             </div>
           )}
         </div>
