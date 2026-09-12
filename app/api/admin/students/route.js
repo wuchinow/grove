@@ -59,6 +59,7 @@ export async function GET() {
       claimed: !!s.auth_user_id,
       grade: (s.profile && s.profile.grade) || "",
       interests: (s.profile && Array.isArray(s.profile.interests)) ? s.profile.interests : [],
+      avatar: (s.profile && s.profile.avatar) || "",
       insights: Array.isArray(s.insights) ? s.insights : [],
       created_at: s.created_at,
       updated_at: s.updated_at,

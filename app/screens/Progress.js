@@ -74,7 +74,7 @@ export default function Progress({ g }) {
                     <Tree days={c.days} mastery={c.mastery} width={34} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 800, fontSize: 14.5 }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 1 }}>{growthLabel(c.days, c.mastery)} &middot; {statusOf(c.mastery)}</div>
+                      <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginTop: 1 }}>{growthLabel(c.days, c.mastery, g.settings.mastery_threshold)} &middot; {statusOf(c.mastery)}</div>
                     </div>
                   </div>
                 ))}

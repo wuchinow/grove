@@ -235,7 +235,7 @@ export default function Tutor({ g }) {
             <div style={{ flex: 1 }}>
               <div className="disp" style={{ fontSize: 18, fontWeight: 600 }}>{active ? active.name : ""}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginTop: 2 }}>
-                {active ? `${growthLabel(active.days, active.mastery)} · ${statusOf(active.mastery)}` : ""}
+                {active ? `${growthLabel(active.days, active.mastery, g.settings.mastery_threshold)} · ${statusOf(active.mastery)}` : ""}
               </div>
             </div>
           </div>

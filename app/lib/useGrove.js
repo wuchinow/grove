@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { callAPI, parseJSON, fileToImage, fileToBase64, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, DOCUMENT_SYSTEM, DOCUMENT_PROMPT, DIRECT_TEXT_MAX, splitParagraphs, SECTIONS_SYSTEM, SECTIONS_PROMPT, SCAN_SYSTEM, SCAN_PROMPT, SAMPLE, uid } from "./ai";
 import { soundEnabled, playMiss, playSolid, playSessionComplete } from "./sound";
+import { DEFAULT_SETTINGS } from "./settings";
 
 // ---- useGrove --------------------------------------------------------------
 // A student can have several groves, one per subject. This hook owns: the
@@ -34,6 +35,11 @@ export function useGrove() {
   const [saveState, setSaveState] = useState("");  // "", "saving", "saved", "error"
   const [profile, setProfile] = useState(null);   // { grade } once set up
   const [insights, setInsights] = useState([]);   // short notes from past sessions, for tutor calibration
+  // Public subset of the admin Tuning settings (starting_trees,
+  // mastery_threshold, interest_analogies, sample_grove), read once at boot
+  // from /api/auth/session or /api/student. Defaults match pre-Tuning
+  // behavior exactly, so a failed fetch is invisible to the student.
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [setupGrade, setSetupGrade] = useState("");
   const [setupInterests, setSetupInterests] = useState(["", "", ""]);
   const [setupAvatar, setSetupAvatar] = useState(""); // data URL, seeded from profile.avatar when editing
@@ -115,6 +121,7 @@ export function useGrove() {
     setProfile(j.profile && j.profile.grade ? j.profile : null);
     setGroves(Array.isArray(j.groves) ? j.groves : []);
     setInsights(Array.isArray(j.insights) ? j.insights : []);
+    if (j.settings) setSettings(j.settings);
   }
 
   useEffect(() => {
@@ -132,6 +139,10 @@ export function useGrove() {
         const r = await fetch("/api/auth/session", { cache: "no-store" });
         const j = r.ok ? await r.json() : null;
         if (cancelled) return;
+        // A guest gets settings too - session always returns the public
+        // subset regardless of whether there's a student, since a guest's
+        // first extraction still needs starting_trees et al.
+        if (j && j.settings) setSettings(j.settings);
         if (j && j.student) { applyPerson(j.student.student_id, j, "account"); return; }
         // Signed in with Google but no username yet: ask for one, and don't
         // fall through to guest mode, since the session is real.
@@ -399,13 +410,13 @@ export function useGrove() {
       const images = await Promise.all(files.map((f) => fileToImage(f)));
       const content = [
         ...images.map((img) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: img.data } })),
-        { type: "text", text: EXTRACT_PROMPT },
+        { type: "text", text: EXTRACT_PROMPT(settings.starting_trees) },
       ];
       const text = await callAPI([{ role: "user", content }], EXTRACT_SYSTEM, "extract");
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || "Your work");
-      setPending(parsed.concepts.slice(0, 7));
+      setPending(parsed.concepts.slice(0, settings.starting_trees));
       setScreen("confirm");
     } catch {
       setError(multi ? "I couldn't read those clearly. Try brighter, closer photos." : "I couldn't read that one clearly. Try a brighter, closer photo.");
@@ -424,14 +435,14 @@ export function useGrove() {
     setError(""); setTopicText(""); setSourceMode("topic"); setScreen("processing");
     try {
       const text = await callAPI(
-        [{ role: "user", content: TOPIC_PROMPT(topic, profile && profile.grade) }],
+        [{ role: "user", content: TOPIC_PROMPT(topic, profile && profile.grade, settings.starting_trees) }],
         TOPIC_SYSTEM,
         "topic"
       );
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || topic);
-      setPending(parsed.concepts.slice(0, 7));
+      setPending(parsed.concepts.slice(0, settings.starting_trees));
       setScreen("confirm");
     } catch {
       setError("I couldn't break that topic down. Try naming it a little differently.");
@@ -538,13 +549,13 @@ export function useGrove() {
     try {
       const content = [
         { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } },
-        { type: "text", text: SCAN_PROMPT },
+        { type: "text", text: SCAN_PROMPT(settings.starting_trees) },
       ];
       const text = await callAPI([{ role: "user", content }], SCAN_SYSTEM, "extract");
       const parsed = parseJSON(text);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || "Your document");
-      setPending(parsed.concepts.slice(0, 7));
+      setPending(parsed.concepts.slice(0, settings.starting_trees));
       pendingSource.current = null;
       setScreen("confirm");
     } catch {
@@ -604,11 +615,11 @@ export function useGrove() {
   async function runDocumentExtraction(text, { fullText, kind, filename, start, end }) {
     setProcessingStage("extracting"); setScreen("processing");
     try {
-      const raw = await callAPI([{ role: "user", content: DOCUMENT_PROMPT(text) }], DOCUMENT_SYSTEM, "extract");
+      const raw = await callAPI([{ role: "user", content: DOCUMENT_PROMPT(text, settings.starting_trees) }], DOCUMENT_SYSTEM, "extract");
       const parsed = parseJSON(raw);
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || filename || "Your document");
-      setPending(parsed.concepts.slice(0, 7));
+      setPending(parsed.concepts.slice(0, settings.starting_trees));
       pendingSource.current = { text: fullText, kind, filename, start, end };
       setScreen("confirm");
     } catch {
@@ -635,9 +646,13 @@ export function useGrove() {
 
   function nextStage(c) {
     const stages = ["Just planted", "Sprouting", "Sapling", "Young tree", "Full grown", "Towering"];
-    const i = Math.min(5, c.days);
+    const threshold = settings.mastery_threshold || 1;
+    const i = Math.min(5, Math.floor(c.days / threshold));
     if (i >= 5) return "Fully grown. Come back to it whenever you want to keep it green.";
-    return `Finish one more session to become a ${stages[i + 1]}.`;
+    const remaining = (i + 1) * threshold - c.days;
+    return remaining === 1
+      ? `Finish one more session to become a ${stages[i + 1]}.`
+      : `Finish ${remaining} more sessions to become a ${stages[i + 1]}.`;
   }
   // Going to zero trees is the one legitimate reason to overwrite a non-empty
   // concepts array with an empty one, so these two send allowEmpty explicitly
@@ -775,7 +790,7 @@ export function useGrove() {
     return !hasOptions && !hasQuestion;
   }
   async function getTutorReply(msgsForApi) {
-    const system = tutorSystem({ ...(profile || {}), insights });
+    const system = tutorSystem({ ...(profile || {}), insights }, settings);
     const text = await callAPI(msgsForApi, system, "tutor");
     const j = parseJSON(text) || { message: text, phase: "question", understanding: "unknown" };
     if (!isMalformed(j)) return { text, j };
@@ -860,5 +875,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleStudy, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleStudy, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, settings, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }
