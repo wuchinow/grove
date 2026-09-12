@@ -100,7 +100,7 @@ export function fileToImage(file, maxDim = 1200) {
         canvas.width = width; canvas.height = height;
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
         const url = canvas.toDataURL("image/jpeg", 0.85);
-        resolve({ data: url.split(",")[1] });
+        resolve({ data: url.split(",")[1], url });
       };
       img.src = reader.result;
     };

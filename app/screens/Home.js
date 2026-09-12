@@ -12,7 +12,7 @@ import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleShare, handleStudy, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
+  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleStudy, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
   const flourishing = concepts.filter((c) => c.mastery >= 85).length;
@@ -199,7 +199,6 @@ export default function Home({ g }) {
                 </span>
               </button>
             </div>
-            <input ref={fileRef} type="file" accept="image/*,.pdf,.docx,.txt,text/plain,application/pdf" multiple onChange={handleShare} style={{ display: "none" }} />
 
             {!has && !hideSample && g.settings.sample_grove && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
