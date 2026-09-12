@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { cfg, resolveStudent } from "../../lib/auth";
+import { fetchPublicSettings } from "../../lib/settings";
 
 // Shared per-person data: profile (grade, interests) and insights. Identity
 // comes from the session cookie. A `student` id in the query or body is only
@@ -21,7 +22,8 @@ export async function GET(request) {
     const concepts = Array.isArray(g.concepts) ? g.concepts : [];
     return { id: g.id, name: g.name, treeCount: concepts.length, flourishing: concepts.filter((x) => x.mastery >= 85).length };
   });
-  return Response.json({ student: me.student_id, mode: me.mode, profile: me.profile || {}, insights: Array.isArray(me.insights) ? me.insights : [], groves });
+  const settings = await fetchPublicSettings(c);
+  return Response.json({ student: me.student_id, mode: me.mode, profile: me.profile || {}, insights: Array.isArray(me.insights) ? me.insights : [], groves, settings });
 }
 
 export async function PUT(request) {
