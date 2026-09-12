@@ -3,10 +3,14 @@
 
 Screenshots Home, Confirm, and Tutor at 320/375/430px width against a
 running `npm run dev` server, with `/api/anthropic` mocked so no real
-Anthropic key or network call is needed. Doesn't replace the real-iPhone
-verification step (this is Chromium, not WebKit, so it can't actually
-reproduce the iOS zoom-on-focus behavior) - it's a fast first pass to catch
-layout breaks before that manual check.
+Anthropic key or network call is needed. Also screenshots /admin and
+/admin/users at the same widths (admin API routes mocked, since this
+sandbox has no real admin session), plus opens and closes the sidebar
+drawer to confirm it slides in, closes on backdrop tap, and closes on nav
+selection - all three widths here are under the drawer's 768px breakpoint.
+Doesn't replace the real-iPhone verification step (this is Chromium, not
+WebKit, so it can't actually reproduce the iOS zoom-on-focus behavior) -
+it's a fast first pass to catch layout breaks before that manual check.
 
 Usage:
     npm run dev &                 # or run it in another terminal
@@ -59,6 +63,57 @@ def mock_anthropic(route, request):
     kind = payload.get("kind")
     body = anthropic_body(TUTOR_REPLY if kind == "tutor" else EXTRACT_REPLY)
     route.fulfill(status=200, content_type="application/json", body=body)
+
+
+ADMIN_WHOAMI = {"me": {"student_id": "admin", "username": "admin", "role": "admin"}}
+
+ADMIN_STUDENTS = {
+    "students": [
+        {
+            "student_id": "asher", "username": "asher", "email": "asher@example.com",
+            "role": "student", "claimed": True, "grade": "9", "interests": ["chess", "biology"],
+            "avatar": "", "insights": [{"concept": "Photosynthesis", "at": "2026-09-10T12:00:00Z", "note": "Got there after a hint."}],
+            "created_at": "2026-08-01T00:00:00Z", "updated_at": "2026-09-11T20:00:00Z",
+            "groves": [{"id": "g1", "name": "Biology", "concepts": 5, "sessions": 8, "updated_at": "2026-09-11T20:00:00Z",
+                        "items": [{"name": "Chlorophyll", "mastery": 78, "days": 4, "reviews": 4}]}],
+            "concepts": 5, "sessions": 8, "flourishing": 2, "gettingThere": 2, "needsWork": 1, "lastActive": "2026-09-11T20:00:00Z",
+        },
+        {
+            "student_id": "valerie", "username": "valerie", "email": "valerie@example.com",
+            "role": "student", "claimed": True, "grade": "11", "interests": [],
+            "avatar": "", "insights": [],
+            "created_at": "2026-08-05T00:00:00Z", "updated_at": "2026-09-09T15:00:00Z",
+            "groves": [], "concepts": 0, "sessions": 0, "flourishing": 0, "gettingThere": 0, "needsWork": 0,
+            "lastActive": "2026-09-09T15:00:00Z",
+        },
+    ],
+    "orphans": [],
+}
+
+ADMIN_STATS = {
+    "students": 2, "claimed": 2, "groves": 1, "concepts": 5, "sessions": 8,
+    "activeToday": 0, "activeWeek": 1, "activeMonth": 2, "newThisWeek": 0,
+    "mastery": {"flourishing": 2, "gettingThere": 2, "needsWork": 1, "untouched": 0, "buckets": [0, 1, 1, 1, 2]},
+    "struggling": [{"name": "Glucose", "mastery": 30, "reviews": 2}],
+    "usage": {
+        "today": {"calls": 3, "cost": 0.02}, "week": {"calls": 20, "cost": 0.15}, "month": {"calls": 80, "cost": 0.6},
+        "failedCalls": 0, "byKind": {"tutor": {"calls": 60, "cost": 0.4}, "extract": {"calls": 20, "cost": 0.2}},
+    },
+}
+
+ADMIN_SETTINGS = {
+    "fixed_costs": [{"id": "supabase-pro", "name": "Supabase Pro org fee", "amount": 5.0, "group": "Infrastructure", "note": ""}],
+    "price_per_month": 4,
+    "tuning": {"model": "claude-sonnet-5", "effort": "low", "starting_trees": 7, "mastery_threshold": 1, "interest_analogies": True, "sample_grove": True},
+    "changeLog": [{"setting": "starting_trees", "old_value": "7", "new_value": "5", "changed_by": "admin", "created_at": "2026-09-12T10:00:00Z"}],
+}
+
+
+def mock_admin_routes(page):
+    page.route("**/api/admin/whoami", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_WHOAMI)))
+    page.route("**/api/admin/students", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_STUDENTS)))
+    page.route("**/api/admin/stats", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_STATS)))
+    page.route("**/api/admin/settings", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_SETTINGS)))
 
 
 def run(base_url: str, out_dir: Path):
@@ -128,6 +183,53 @@ def run(base_url: str, out_dir: Path):
     print(f"Screenshots written to {out_dir}")
 
 
+def run_admin(base_url: str, out_dir: Path):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        for width in WIDTHS:
+            page = browser.new_page(viewport={"width": width, "height": HEIGHT})
+            page.emulate_media(reduced_motion="reduce")
+            mock_admin_routes(page)
+
+            page.goto(f"{base_url}/admin", wait_until="networkidle")
+            page.wait_for_selector("text=Right now", timeout=10000)
+            page.screenshot(path=str(out_dir / f"admin-overview-{width}.png"), full_page=True)
+
+            # Drawer: sidebar starts off-canvas under 768px, the menu button
+            # opens it, a backdrop tap or a nav click closes it.
+            menu_btn = page.get_by_role("button", name="Open menu")
+            assert menu_btn.count(), f"no hamburger button visible at {width}px (drawer CSS breakpoint not applied?)"
+            menu_btn.click()
+            page.wait_for_timeout(300)  # let the .25s transform transition settle
+            page.screenshot(path=str(out_dir / f"admin-drawer-open-{width}.png"), full_page=True)
+            # Click a point guaranteed to be outside the 200px sidebar but
+            # inside the full-viewport backdrop, at every width tested.
+            page.mouse.click(width - 5, 50)
+            page.wait_for_timeout(300)
+            page.screenshot(path=str(out_dir / f"admin-drawer-closed-{width}.png"), full_page=True)
+
+            # Users tab: reopen the drawer and navigate via the nav link,
+            # which should close the drawer as a side effect of selection.
+            menu_btn.click()
+            page.wait_for_timeout(300)
+            page.get_by_role("link", name=re.compile("Users")).click()
+            page.wait_for_selector("text=Users (", timeout=10000)
+            page.wait_for_timeout(300)  # let the drawer's close transition (triggered by selection) settle
+            page.screenshot(path=str(out_dir / f"admin-users-{width}.png"), full_page=True)
+
+            # Density toggle and a detail-panel expand, for a fuller Users
+            # screenshot than the default state alone.
+            compact_btn = page.get_by_role("button", name="Compact rows")
+            if compact_btn.count():
+                compact_btn.click()
+                page.screenshot(path=str(out_dir / f"admin-users-compact-{width}.png"), full_page=True)
+
+            page.close()
+        browser.close()
+    print(f"Admin screenshots written to {out_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:3000")
@@ -135,6 +237,7 @@ def main():
     args = parser.parse_args()
     try:
         run(args.base_url, Path(args.out_dir))
+        run_admin(args.base_url, Path(args.out_dir))
     except Exception as exc:  # surface a clear failure instead of a bare traceback
         print(f"mobile-check failed: {exc}", file=sys.stderr)
         sys.exit(1)
