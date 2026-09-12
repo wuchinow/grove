@@ -47,10 +47,10 @@ export const FONTS = `
   .noscroll{scroll-behavior:auto}
 }
 .groveHeaderIcon{display:grid;place-items:center}
-.groveHeaderName{font-size:19px;max-width:150px;min-width:44px}
+.groveHeaderName{font-size:19px;flex:1 1 auto;min-width:44px}
 .groveHeaderPill{padding:0 13px}
 @media (max-width:480px){
-  .groveHeaderName{font-size:16px;max-width:96px}
+  .groveHeaderName{font-size:16px}
   .groveHeaderPill{padding:0;width:36px;justify-content:center}
   .groveHeaderPillLabel{display:none}
 }
