@@ -22,7 +22,6 @@ UX-RULES.md; this script asserts only the one thing Chromium actually can
 (input font-size >= 16px) and otherwise leaves judgment to the screenshots.
 """
 import argparse
-import base64
 import json
 import re
 import sys
@@ -117,16 +116,6 @@ def mock_admin_routes(page):
     page.route("**/api/admin/stats", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_STATS)))
     page.route("**/api/admin/settings", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_SETTINGS)))
 
-
-# A 1x1 red JPEG, valid enough for the browser's <img>/canvas pipeline
-# (fileToImage draws it to a canvas and re-encodes it) without needing a
-# real photo or an image library in this environment.
-TEST_JPEG_B64 = (
-    "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQ"
-    "CgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ"
-    "EBD/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAA"
-    "AAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
-)
 
 
 def mock_signed_in(page, groves=None):
@@ -261,51 +250,105 @@ def run_admin(base_url: str, out_dir: Path):
     print(f"Admin screenshots written to {out_dir}")
 
 
+def generate_real_jpegs(p, tmp_dir: Path, n: int):
+    """Real, well-formed JPEGs (not a minimal synthetic one) via a
+    throwaway page screenshot - large enough (a full-size viewport, not a
+    1x1 pixel) to exercise the actual FileReader -> Image -> canvas ->
+    toDataURL pipeline the way a real photo would, without needing an
+    image library in this environment."""
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 1200, "height": 1600})
+    files = []
+    colors = ["red,blue", "green,yellow", "orange,purple", "cyan,magenta", "black,white", "pink,teal"]
+    for i in range(n):
+        page.set_content(f"<body style='margin:0;background:linear-gradient(135deg,{colors[i % len(colors)]})'><h1 style='color:white;font-size:80px'>Page {i}</h1></body>")
+        fp = tmp_dir / f"p{i}.jpg"
+        page.screenshot(path=str(fp), type="jpeg", quality=90)
+        files.append(str(fp))
+    browser.close()
+    return files
+
+
 def run_photo_review(base_url: str, out_dir: Path):
     """Camera and library photos both land on the new review screen before
     extraction (Stage 2). Exercises the real file input end to end: pick,
-    "Add another page" past the 6-page cap, remove, Extract."""
+    "Add another page" past the 6-page cap, remove, Extract - in both
+    Chromium and WebKit, with real (not 1x1-pixel) JPEGs. A real bug
+    shipped here that a Chromium-only, minimal-JPEG check didn't catch: a
+    thumbnail cell sized with CSS aspect-ratio inside a grid track
+    collapsed to zero height on a real iPhone (Chromium and desktop
+    WebKit both rendered it fine), which also silently clipped the
+    absolutely-positioned remove button sharing the same overflow:hidden
+    box - "N pages" showed correctly (state was fine) but nothing was
+    visible or reachable. The fix (a padding-bottom intrinsic-ratio cell)
+    doesn't depend on aspect-ratio support at all; these checks assert the
+    thumbnail and remove button actually occupy real, non-zero, in-bounds
+    space, not just that the count text is right."""
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        jpeg_bytes = base64.b64decode(TEST_JPEG_B64)
-        files = []
-        for i in range(6):
-            fp = Path(tmp) / f"p{i}.jpg"
-            fp.write_bytes(jpeg_bytes)
-            files.append(str(fp))
-
         with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 320, "height": HEIGHT})
-            page.emulate_media(reduced_motion="reduce")
-            page.route("**/api/anthropic", mock_anthropic)
-            page.goto(base_url, wait_until="networkidle")
-            guest_btn = page.get_by_text("Continue as a guest")
-            if guest_btn.count():
-                guest_btn.click()
+            files = generate_real_jpegs(p, Path(tmp), 6)
 
-            page.get_by_text("Share your work").click()
-            page.locator('input[type="file"]').set_input_files(files[:5])
-            page.wait_for_selector("text=Review your pages", timeout=10000)
-            assert page.get_by_text("5 pages").count(), "expected '5 pages' after picking 5"
+            for engine_name, launcher in [("chromium", p.chromium), ("webkit", p.webkit)]:
+                browser = launcher.launch()
+                page = browser.new_page(viewport={"width": 320, "height": HEIGHT})
+                page.route("**/api/anthropic", mock_anthropic)
+                page.goto(base_url, wait_until="networkidle")
+                guest_btn = page.get_by_text("Continue as a guest")
+                if guest_btn.count():
+                    guest_btn.click()
 
-            with page.expect_event("filechooser") as fc_info:
-                page.get_by_text("Add another page").click()
-            fc_info.value.set_files(files[5:6])
-            page.wait_for_timeout(300)
-            assert page.get_by_text("6 pages").count(), "expected '6 pages' after adding a 6th"
-            assert page.get_by_text("6 of 6").count(), "expected the '6 of 6' cap label once full"
-            page.screenshot(path=str(out_dir / "photoreview-320-full.png"), full_page=True)
+                page.get_by_text("Share your work").click()
+                page.locator('input[type="file"]').set_input_files(files[:5])
+                page.wait_for_selector("text=Review your pages", timeout=10000)
+                page.wait_for_timeout(300)
+                assert page.get_by_text("5 pages").count(), f"[{engine_name}] expected '5 pages' after picking 5"
 
-            page.get_by_label(re.compile(r"^Remove page")).first.click()
-            page.wait_for_timeout(200)
-            assert page.get_by_text("5 pages").count(), "expected '5 pages' after removing one"
+                # The actual regression: verify each thumbnail and its
+                # remove button occupy real, visible, in-viewport, SQUARE
+                # space - not just that the count text updated. A weaker
+                # ">10px" check wouldn't have caught a second bug found
+                # while fixing the first: switching to the padding-bottom
+                # trick fixed the zero-height collapse, but CSS Grid's
+                # default align-items:stretch then stretched each cell to
+                # the tallest item in its row regardless of its
+                # padding-driven height (86px wide x 513px tall, not
+                # square) - fixed with alignItems:"start" on the grid.
+                imgs = page.locator("img[alt^='Page']")
+                assert imgs.count() == 5, f"[{engine_name}] expected 5 <img> elements, found {imgs.count()}"
+                for i in range(imgs.count()):
+                    box = imgs.nth(i).bounding_box()
+                    assert box and box["width"] > 10 and box["height"] > 10, (
+                        f"[{engine_name}] thumbnail {i} has a collapsed bounding box: {box}"
+                    )
+                    assert abs(box["width"] - box["height"]) < 2, (
+                        f"[{engine_name}] thumbnail {i} isn't square (grid stretch regression?): {box}"
+                    )
+                remove_btns = page.get_by_label(re.compile(r"^Remove page"))
+                assert remove_btns.count() == 5, f"[{engine_name}] expected 5 remove buttons, found {remove_btns.count()}"
+                for i in range(remove_btns.count()):
+                    box = remove_btns.nth(i).bounding_box()
+                    assert box and box["width"] > 5 and box["height"] > 5 and 0 <= box["x"] <= 320, (
+                        f"[{engine_name}] remove button {i} isn't visible/in-bounds: {box}"
+                    )
 
-            page.get_by_role("button", name="Extract").click()
-            page.wait_for_selector("text=Here's what I found", timeout=10000)
+                with page.expect_event("filechooser") as fc_info:
+                    page.get_by_text("Add another page").click()
+                fc_info.value.set_files(files[5:6])
+                page.wait_for_timeout(300)
+                assert page.get_by_text("6 pages").count(), f"[{engine_name}] expected '6 pages' after adding a 6th"
+                assert page.get_by_text("6 of 6").count(), f"[{engine_name}] expected the '6 of 6' cap label once full"
+                page.screenshot(path=str(out_dir / f"photoreview-{engine_name}-320-full.png"), full_page=True)
 
-            page.close()
-            browser.close()
+                page.get_by_label(re.compile(r"^Remove page")).first.click()
+                page.wait_for_timeout(200)
+                assert page.get_by_text("5 pages").count(), f"[{engine_name}] expected '5 pages' after removing one"
+
+                page.get_by_role("button", name="Extract").click()
+                page.wait_for_selector("text=Here's what I found", timeout=10000)
+
+                page.close()
+                browser.close()
     print(f"Photo-review screenshots written to {out_dir}")
 
 
