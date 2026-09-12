@@ -22,9 +22,11 @@ UX-RULES.md; this script asserts only the one thing Chromium actually can
 (input font-size >= 16px) and otherwise leaves judgment to the screenshots.
 """
 import argparse
+import base64
 import json
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -114,6 +116,35 @@ def mock_admin_routes(page):
     page.route("**/api/admin/students", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_STUDENTS)))
     page.route("**/api/admin/stats", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_STATS)))
     page.route("**/api/admin/settings", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(ADMIN_SETTINGS)))
+
+
+# A 1x1 red JPEG, valid enough for the browser's <img>/canvas pipeline
+# (fileToImage draws it to a canvas and re-encodes it) without needing a
+# real photo or an image library in this environment.
+TEST_JPEG_B64 = (
+    "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQ"
+    "CgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ"
+    "EBD/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAA"
+    "AAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+)
+
+
+def mock_signed_in(page, groves=None):
+    """Simulates a signed-in student session (Stage 2's Play/AccountMenu
+    checks need one; this sandbox has no real Supabase credentials). Mocks
+    every network call the boot + a fresh-grove flow touches so nothing
+    left unmocked throws a console error mid-test."""
+    session_body = {
+        "student": {"student_id": "midnight", "username": "midnight", "role": "student"},
+        "profile": {"grade": "10", "snakeBest": 12},
+        "insights": [],
+        "groves": groves or [],
+        "settings": {"starting_trees": 7, "mastery_threshold": 1, "interest_analogies": True, "sample_grove": True},
+    }
+    page.route("**/api/auth/session", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(session_body)))
+    page.route("**/api/grove", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"id": "mock-grove-1", "concepts": []})))
+    page.route("**/api/student", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"ok": True})))
+    page.route("**/api/game", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"best": 12})))
 
 
 def run(base_url: str, out_dir: Path):
@@ -230,6 +261,134 @@ def run_admin(base_url: str, out_dir: Path):
     print(f"Admin screenshots written to {out_dir}")
 
 
+def run_photo_review(base_url: str, out_dir: Path):
+    """Camera and library photos both land on the new review screen before
+    extraction (Stage 2). Exercises the real file input end to end: pick,
+    "Add another page" past the 6-page cap, remove, Extract."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        jpeg_bytes = base64.b64decode(TEST_JPEG_B64)
+        files = []
+        for i in range(6):
+            fp = Path(tmp) / f"p{i}.jpg"
+            fp.write_bytes(jpeg_bytes)
+            files.append(str(fp))
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 320, "height": HEIGHT})
+            page.emulate_media(reduced_motion="reduce")
+            page.route("**/api/anthropic", mock_anthropic)
+            page.goto(base_url, wait_until="networkidle")
+            guest_btn = page.get_by_text("Continue as a guest")
+            if guest_btn.count():
+                guest_btn.click()
+
+            page.get_by_text("Share your work").click()
+            page.locator('input[type="file"]').set_input_files(files[:5])
+            page.wait_for_selector("text=Review your pages", timeout=10000)
+            assert page.get_by_text("5 pages").count(), "expected '5 pages' after picking 5"
+
+            with page.expect_event("filechooser") as fc_info:
+                page.get_by_text("Add another page").click()
+            fc_info.value.set_files(files[5:6])
+            page.wait_for_timeout(300)
+            assert page.get_by_text("6 pages").count(), "expected '6 pages' after adding a 6th"
+            assert page.get_by_text("6 of 6").count(), "expected the '6 of 6' cap label once full"
+            page.screenshot(path=str(out_dir / "photoreview-320-full.png"), full_page=True)
+
+            page.get_by_label(re.compile(r"^Remove page")).first.click()
+            page.wait_for_timeout(200)
+            assert page.get_by_text("5 pages").count(), "expected '5 pages' after removing one"
+
+            page.get_by_role("button", name="Extract").click()
+            page.wait_for_selector("text=Here's what I found", timeout=10000)
+
+            page.close()
+            browser.close()
+    print(f"Photo-review screenshots written to {out_dir}")
+
+
+def run_play(base_url: str, out_dir: Path):
+    """Snake's start/pause/restart flow (Stage 2), via a mocked signed-in
+    session - Play is account-menu-only and this sandbox has no real
+    Supabase credentials to reach it otherwise."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        for width in WIDTHS:
+            page = browser.new_page(viewport={"width": width, "height": HEIGHT})
+            page.emulate_media(reduced_motion="reduce")
+            mock_signed_in(page)
+            page.goto(base_url, wait_until="networkidle")
+            page.wait_for_timeout(300)
+
+            page.get_by_role("button", name="Account").click()
+            page.get_by_text("Take a break").click()
+            page.wait_for_selector("text=Take a break", timeout=5000)  # Play's own heading, not the menu item
+            page.wait_for_selector("text=Best 12", timeout=5000)
+            page.screenshot(path=str(out_dir / f"play-start-{width}.png"), full_page=True)
+
+            page.get_by_role("button", name="Play").click()
+            page.wait_for_selector("text=Pause", timeout=5000)
+            page.screenshot(path=str(out_dir / f"play-playing-{width}.png"), full_page=True)
+
+            page.get_by_role("button", name="Pause").click()
+            page.wait_for_selector("text=Resume", timeout=5000)
+            page.screenshot(path=str(out_dir / f"play-paused-{width}.png"), full_page=True)
+
+            page.get_by_role("button", name="Restart").click()
+            page.wait_for_selector("text=Pause", timeout=5000)  # back to playing
+
+            page.close()
+        browser.close()
+    print(f"Play screenshots written to {out_dir}")
+
+
+def run_header_long_name(base_url: str, out_dir: Path):
+    """Grove header name at 320px with a moderately long name and the
+    account menu open (Stage 2 grove-view item), via a mocked signed-in
+    session so AccountMenu renders its real dropdown, not a guest "Sign
+    in" pill."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 320, "height": HEIGHT})
+        page.emulate_media(reduced_motion="reduce")
+        mock_signed_in(page)  # empty groves - avoids switcher/auto-open, same topic-input path run()/run_photo_review() already use for guests
+        page.route("**/api/anthropic", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=anthropic_body({"subject": "Music theory", "concepts": [{"name": "Intervals", "note": "n"}]}),
+        ))
+        page.goto(base_url, wait_until="networkidle")
+        topic_input = page.get_by_placeholder("A topic, or paste a URL")
+        topic_input.fill("Music theory")
+        topic_input.press("Enter")
+        page.wait_for_selector("text=Here's what I found", timeout=10000)
+        page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
+        page.wait_for_timeout(1200)
+        page.get_by_text("Back to my grove").click()
+        page.wait_for_selector(".groveHeaderName:has-text('Music theory')", timeout=10000)
+
+        name_box = page.evaluate("""
+        () => {
+          const el = document.querySelector('.groveHeaderName');
+          const btn = el.closest('button');
+          const nr = el.getBoundingClientRect(), br = btn.getBoundingClientRect();
+          return { text: el.innerText, overflowing: Math.round(nr.right) > Math.round(br.right) + 1 };
+        }
+        """)
+        assert not name_box["overflowing"], f"grove name overflows its header button: {name_box}"
+        assert name_box["text"] == "Music theory", f"expected the full name to render, got {name_box['text']!r}"
+
+        page.get_by_role("button", name="Account").click()
+        page.wait_for_timeout(200)
+        page.screenshot(path=str(out_dir / "home-header-longname-menu-320.png"), full_page=True)
+        page.close()
+        browser.close()
+    print(f"Header/long-name screenshot written to {out_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:3000")
@@ -238,6 +397,9 @@ def main():
     try:
         run(args.base_url, Path(args.out_dir))
         run_admin(args.base_url, Path(args.out_dir))
+        run_photo_review(args.base_url, Path(args.out_dir))
+        run_play(args.base_url, Path(args.out_dir))
+        run_header_long_name(args.base_url, Path(args.out_dir))
     except Exception as exc:  # surface a clear failure instead of a bare traceback
         print(f"mobile-check failed: {exc}", file=sys.stderr)
         sys.exit(1)
