@@ -2,19 +2,18 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "../components/Tree";
-import Icon from "../components/Icon";
-import { Card, KPI, Meter, Segbar, H, bandColor, ago } from "./ui";
+import { Card, KPI, Meter, Segbar, H } from "./ui";
 
-// The Overview page: everything the original single-file dashboard had -
-// today's KPIs, engagement, concept health, mastery histogram, struggling
-// list, the full students list with detail panel, the attach-old-grove
-// tool, and API usage & cost. Gating and page chrome now live in layout.js.
+// The Overview page: today's KPIs, engagement, concept health, mastery
+// histogram, struggling list, the attach-old-grove tool, and API usage &
+// cost. The full students list moved to its own Users tab (Stage 1, Sept
+// 12); this still fetches /api/admin/students because the attach-old-grove
+// tool below needs data.students/data.orphans for its selects. Gating and
+// page chrome live in layout.js.
 export default function Overview() {
   const [state, setState] = React.useState("loading"); // loading | ok | error
   const [stats, setStats] = React.useState(null);
   const [data, setData] = React.useState({ students: [], orphans: [] });
-  const [open, setOpen] = React.useState(null);
   const [linkFrom, setLinkFrom] = React.useState("");
   const [linkTo, setLinkTo] = React.useState("");
   const [linkMsg, setLinkMsg] = React.useState("");
@@ -115,78 +114,6 @@ export default function Overview() {
           )}
         </Card>
       </div>
-
-      <H>Students</H>
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        {data.students.map((s, idx) => (
-          <div key={s.student_id} style={{ padding: "14px 18px", borderTop: idx === 0 ? "none" : `1px solid ${C.line}` }}>
-            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontWeight: 800, fontSize: 14.5 }}>{s.username || s.student_id}</span>
-              {s.role === "admin" && <span style={{ fontSize: 10.5, background: C.soft, color: C.primaryDeep, padding: "2px 7px", borderRadius: 999, fontWeight: 800 }}>admin</span>}
-              <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 800, color: s.claimed ? C.sageDeep : C.sub, background: s.claimed ? C.soft : "transparent", border: s.claimed ? "none" : `1px solid ${C.line}`, padding: "3px 9px", borderRadius: 999 }}>{s.claimed ? "Signed up" : "Beta link"}</span>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 6 }}>
-              {s.grade && <span>Grade {s.grade}</span>}
-              <span>{s.groves.length} {s.groves.length === 1 ? "grove" : "groves"}</span>
-              <span>{s.concepts} concepts</span>
-              <span>{s.sessions} {s.sessions === 1 ? "session" : "sessions"}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 9 }}>
-              <div style={{ flex: 1, minWidth: 80 }}>
-                <Segbar segments={[
-                  { value: s.flourishing, color: C.sageDeep },
-                  { value: s.gettingThere, color: C.sage },
-                  { value: s.needsWork, color: C.coral },
-                ]} />
-              </div>
-              <span style={{ fontSize: 12, color: C.sub, fontWeight: 700, whiteSpace: "nowrap" }}>{ago(s.lastActive || s.updated_at)}</span>
-              <button onClick={() => setOpen(open === s.student_id ? null : s.student_id)} style={{ border: "none", background: "transparent", color: C.primaryDeep, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, padding: 0, whiteSpace: "nowrap" }}>{open === s.student_id ? "Hide" : "Details"}</button>
-            </div>
-            {open === s.student_id && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>GROVES</div>
-                    {s.groves.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
-                    {s.groves.map((g) => (
-                      <div key={g.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                          <Tree days={Math.min(5, g.sessions)} mastery={g.concepts ? 60 : 0} width={22} />
-                          <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
-                          <span style={{ color: C.sub }}>{g.concepts} concepts · {g.sessions} sessions · {ago(g.updated_at)}</span>
-                        </div>
-                        {(g.items || []).length > 0 && (
-                          <div style={{ marginTop: 5, marginLeft: 30, display: "flex", flexDirection: "column", gap: 3 }}>
-                            {g.items.map((c, i) => (
-                              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12.5 }}>
-                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-                                <span style={{ color: C.stone, flexShrink: 0 }}>{c.days === 0 ? "never tended" : `${c.days} ${c.days === 1 ? "session" : "sessions"}`}</span>
-                                <span style={{ color: bandColor(c.mastery), fontWeight: 800, flexShrink: 0, minWidth: 26, textAlign: "right" }}>{c.mastery}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {s.interests.length > 0 && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 8 }}>Into: {s.interests.join(", ")}</div>}
-                    {s.email && <div style={{ fontSize: 12.5, color: C.sub, marginTop: 4 }}>{s.email}</div>}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: C.sub, marginBottom: 6 }}>INSIGHTS THE TUTOR HAS SAVED</div>
-                    {s.insights.length === 0 && <div style={{ fontSize: 13, color: C.sub }}>None yet.</div>}
-                    {[...s.insights].reverse().slice(0, 6).map((x, i) => (
-                      <div key={i} style={{ fontSize: 12.5, padding: "5px 0", borderBottom: `1px solid ${C.line}` }}>
-                        <span style={{ fontWeight: 800 }}>{x.concept}</span> <span style={{ color: C.sub }}>· {ago(x.at)}</span>
-                        <div style={{ marginTop: 2, lineHeight: 1.45 }}>{x.note}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </Card>
 
       {stats.usage && (
         <>
