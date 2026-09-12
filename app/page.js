@@ -8,6 +8,7 @@ import Home from "./screens/Home";
 import Progress from "./screens/Progress";
 import Help from "./screens/Help";
 import Processing from "./screens/Processing";
+import PhotoReview from "./screens/PhotoReview";
 import Confirm from "./screens/Confirm";
 import Sections from "./screens/Sections";
 import Tutor from "./screens/Tutor";
@@ -32,6 +33,7 @@ export default function App() {
     : g.screen === "progress" ? <Progress g={g} />
     : g.screen === "help" ? <Help g={g} />
     : g.screen === "processing" ? <Processing g={g} />
+    : g.screen === "photo-review" ? <PhotoReview g={g} />
     : g.screen === "confirm" ? <Confirm g={g} />
     : g.screen === "sections" ? <Sections g={g} />
     : g.screen === "tutor" ? <Tutor g={g} />
@@ -40,9 +42,13 @@ export default function App() {
 
   // Feedback can be opened from more than one screen, so it overlays
   // whichever one is active rather than living inside any single screen.
+  // The file input lives here too, not inside Home: PhotoReview's "Add
+  // another page" needs to re-open the same input after Home has already
+  // unmounted, and a ref into an unmounted component is null.
   return (
     <>
       {screen}
+      <input ref={g.fileRef} type="file" accept="image/*,.pdf,.docx,.txt,text/plain,application/pdf" multiple onChange={g.handleShare} style={{ display: "none" }} />
       {g.feedbackOpen && <FeedbackCard g={g} />}
     </>
   );

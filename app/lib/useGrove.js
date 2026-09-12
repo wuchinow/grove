@@ -48,6 +48,12 @@ export function useGrove() {
   const [sourceMode, setSourceMode] = useState("photo"); // "photo" | "topic" | "pdf" | "docx" | "txt" | "url", drives Processing's copy
   const [processingStage, setProcessingStage] = useState(""); // "" | "reading" | "structuring" | "extracting", Processing's long-wait caption for document sources
   const [sections, setSections] = useState([]); // [{title, note, start, end}] for the Sections screen, a long document's picked slice
+  // pendingPhotos: [{id, data (base64), url (data URL, for the thumbnail)}]
+  // captured or picked but not yet extracted - the PhotoReview screen lets
+  // the student remove any before committing, or add another page (camera
+  // and library both land here; capped at 6 total, cumulative across
+  // multiple picks).
+  const [pendingPhotos, setPendingPhotos] = useState([]);
   // pendingSource: the {text (full), kind, filename, start, end} to persist as
   // this grove's founding source once confirmConcepts creates it - null for
   // photos, typed topics, and the scanned-PDF fallback (nothing to persist).
@@ -396,20 +402,51 @@ export function useGrove() {
     fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(student)}`, { method: "DELETE" }).catch(() => {});
   }
 
-  // Accepts one photo or several at once (e.g. a multi-page worksheet or a
-  // multi-page calc test). Every page goes into a single extraction call so
-  // the model can read them as one assignment rather than merging separate
-  // results itself. Capped at 6 pages to keep the request a reasonable size.
+  // Accepts one photo or several at once (e.g. a multi-page worksheet, a
+  // multi-page calc test, or a single camera shot). Reads every file into
+  // pendingPhotos for review rather than extracting immediately - the
+  // student can remove any before committing, or tap "Add another page" to
+  // reopen the picker and append more (camera and library both land here).
+  // Capped at 6 pages total, cumulative across multiple picks.
   async function handleFile(e) {
-    const files = e.target.files ? Array.from(e.target.files).slice(0, 6) : [];
+    const room = 6 - pendingPhotos.length;
+    const files = e.target.files ? Array.from(e.target.files).slice(0, room) : [];
+    if (fileRef.current) fileRef.current.value = ""; // clear early so picking the same file again still fires onChange
     if (!files.length) return;
-    const multi = files.length > 1;
-    pendingSource.current = null; docRef.current = null;
-    setError(""); setSourceMode("photo"); setScreen("processing");
+    setError(""); setSourceMode("photo");
     try {
       const images = await Promise.all(files.map((f) => fileToImage(f)));
+      setPendingPhotos((prev) => [...prev, ...images.map((img) => ({ id: uid(), data: img.data, url: img.url }))]);
+      setScreen("photo-review");
+    } catch {
+      setError(files.length > 1 ? "I couldn't read those clearly. Try brighter, closer photos." : "I couldn't read that one clearly. Try a brighter, closer photo.");
+    }
+  }
+
+  function removePendingPhoto(id) {
+    setPendingPhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function addAnotherPage() {
+    if (fileRef.current) fileRef.current.click();
+  }
+
+  function cancelPhotoReview() {
+    setPendingPhotos([]);
+    setScreen("home");
+  }
+
+  // The actual extraction call, deferred until the student confirms the
+  // reviewed set of photos. One call over every page, same shape the old
+  // single-shot handleFile built inline.
+  async function extractPendingPhotos() {
+    if (!pendingPhotos.length) return;
+    const multi = pendingPhotos.length > 1;
+    pendingSource.current = null; docRef.current = null;
+    setError(""); setScreen("processing");
+    try {
       const content = [
-        ...images.map((img) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: img.data } })),
+        ...pendingPhotos.map((p) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: p.data } })),
         { type: "text", text: EXTRACT_PROMPT(settings.starting_trees) },
       ];
       const text = await callAPI([{ role: "user", content }], EXTRACT_SYSTEM, "extract");
@@ -417,12 +454,13 @@ export function useGrove() {
       if (!parsed || !parsed.concepts || !parsed.concepts.length) throw new Error("empty");
       setSubject(parsed.subject || "Your work");
       setPending(parsed.concepts.slice(0, settings.starting_trees));
+      setPendingPhotos([]);
       setScreen("confirm");
     } catch {
+      // Fail back to the review screen, not home - losing captured pages on
+      // an extraction error would be a regression from the old behavior.
       setError(multi ? "I couldn't read those clearly. Try brighter, closer photos." : "I couldn't read that one clearly. Try a brighter, closer photo.");
-      setScreen("home");
-    } finally {
-      if (fileRef.current) fileRef.current.value = "";
+      setScreen("photo-review");
     }
   }
 
@@ -875,5 +913,5 @@ export function useGrove() {
     else setScreen("home");
   }
 
-  return { active, activeGroveId, activeGroveName, activeId, addText, auth, authBusy, authCard, authError, busy, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleStudy, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, phase, preview, processingStage, profile, queue, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, settings, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
+  return { active, activeGroveId, activeGroveName, activeId, addAnotherPage, addText, auth, authBusy, authCard, authError, busy, cancelPhotoReview, chat, chooseSection, clearGrove, concepts, confirmConcepts, createGrove, deleteGrove, editingProfile, error, exitPreview, extractPendingPhotos, failed, feedbackOpen, fileRef, grewIds, groves, grovesLoaded, handleDocument, handleFile, handleShare, handleStudy, input, insights, justPlantedIds, leaveSession, loaded, newGroveName, nextConcept, nextStage, openGrove, pending, pendingPhotos, phase, preview, processingStage, profile, queue, removePendingPhoto, removeTree, renameGrove, reportGameScore, saveState, screen, scrollRef, sections, selected, send, sessionPos, sessionTotal, setActiveId, setAddText, setApiMsgs, setBusy, setChat, setConcepts, setEditingProfile, setError, setFailed, setGrewIds, setInput, setLoaded, setNewGroveName, setPending, setPhase, setProfile, setQueue, setSaveState, setScreen, setSelected, setSetupGrade, setSetupInterests, setShowNewGrove, setStudent, setSubject, setTopicText, setSetupAvatar, setupAvatar, setupGrade, setupInterests, settings, showNewGrove, signIn, signInWithGoogle, signOut, signUp, claimUsername, setAuthCard, setAuthError, setFeedbackOpen, sourceMode, startConcept, startPreview, startSession, studyEverything, student, subject, topicText, updateMastery };
 }
