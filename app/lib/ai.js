@@ -8,9 +8,12 @@
 // a multi-turn tutor session gets progressively cheaper as it grows instead of
 // re-billing the whole conversation at full price every turn (5-minute TTL).
 // Adaptive thinking is left at its default (on); max_tokens is raised to 2000
-// to give it room without truncating the JSON reply. Tutor turns (kind
-// "tutor"/"tutor-retry") run at output_config effort "low" for latency -
-// extraction, topic breakdown, and sections keep the default effort, since
+// to give it room without truncating the JSON reply. The model and
+// output_config effort sent below are fallback values only - the server
+// route (/api/anthropic) always overrides them from the admin Tuning
+// settings, so a browser can't spoof what gets billed and logged. Tutor
+// turns (kind "tutor"/"tutor-retry") get an effort override there;
+// extraction, topic breakdown, and sections keep the API default, since
 // those aren't on the student's live typing-to-reply path.
 function withCacheBreakpoint(content) {
   const block = typeof content === "string" ? { type: "text", text: content } : { ...content };
@@ -24,7 +27,6 @@ export async function callAPI(messages, system, kind) {
       : [withCacheBreakpoint(m.content)];
     return { ...m, content };
   });
-  const isTutorTurn = kind === "tutor" || kind === "tutor-retry";
   const res = await fetch("/api/anthropic", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -33,7 +35,6 @@ export async function callAPI(messages, system, kind) {
       max_tokens: 2000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: cachedMessages,
-      ...(isTutorTurn ? { output_config: { effort: "low" } } : {}),
       kind,
     }),
   });
@@ -121,7 +122,7 @@ export function tutorSeed(c) {
   return `${base} Ask me one question to begin - pick whatever format fits (true/false, multiple choice, or open-ended). Question first, don't tell me the answer.`;
 }
 
-export function tutorSystem(profile) {
+export function tutorSystem(profile, settings) {
   const p = profile || {};
   const grade = p.grade || "";
   const tone = /^(9|10|11|12|college|adult)/i.test(grade)
@@ -131,7 +132,7 @@ export function tutorSystem(profile) {
     : "Your student is in elementary school. Be warm and simple, and keep sentences short.";
   const subject = p.subject ? `They are currently studying ${p.subject}.` : "";
   const interests = Array.isArray(p.interests) ? p.interests.filter(Boolean) : [];
-  const interestLine = interests.length
+  const interestLine = interests.length && (!settings || settings.interest_analogies !== false)
     ? `The student is into: ${interests.join(", ")}. When a real analogy to one of these would genuinely clarify something, reach for it - but only when it actually helps. Don't force a comparison into every question just to reference their interests; a good analogy earns its place, it isn't decoration.`
     : "";
   const insights = Array.isArray(p.insights) ? p.insights.filter(Boolean).slice(-3) : [];
@@ -185,13 +186,13 @@ Respond with ONLY a JSON object, no markdown or backticks. Avoid double quotes i
 {"message":"<what you say>","phase":"question|hint|explain|check|done","understanding":"unknown|struggling|partial|solid","options":["<choice>", ...],"correctOption":"<matching options entry, or "" if options is []>","visual":<optional, omit unless genuinely needed>,"reflection":"<optional, only set when phase is done>"}`;
 
 export const EXTRACT_SYSTEM = `You look at one or more photos of a student's schoolwork (notes, worksheet, study guide, textbook page, diagram, vocab list) and pull out the key concepts they need to learn. When there's more than one photo, treat them as pages of the same assignment and combine what they show rather than treating each in isolation.`;
-export const EXTRACT_PROMPT = `Identify the seven most important concepts to study from this photo (or set of photos, if there's more than one - they're pages of the same assignment). If any photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows, drawing on whichever page it appears on. Respond with ONLY JSON, no markdown:
+export const EXTRACT_PROMPT = (startingTrees = 7) => `Identify the ${startingTrees} most important concepts to study from this photo (or set of photos, if there's more than one - they're pages of the same assignment). If any photo shows the student's own attempt at a question or problem for a concept (an answer they wrote, worked steps, a filled-in blank), briefly note what that attempt shows, drawing on whichever page it appears on. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>","attempt":"<optional: what the student's own work shows for this concept, only if visible>"}]}`;
 
 export const TOPIC_SYSTEM = `You take a topic a student wants to study and break it into the handful of concepts worth learning first. The topic may be a school subject, a chapter, a single idea, or something they are simply curious about.`;
-export const TOPIC_PROMPT = (topic, grade) => `The student wants to study: "${topic}".${grade ? ` They are at this level: ${grade}.` : ""}
+export const TOPIC_PROMPT = (topic, grade, startingTrees = 7) => `The student wants to study: "${topic}".${grade ? ` They are at this level: ${grade}.` : ""}
 
-Break it into the seven concepts most worth learning, ordered so earlier ones build toward later ones. Pitch the scope at their level: a broad topic should be narrowed to what actually matters first, not summarised shallowly.
+Break it into the ${startingTrees} concepts most worth learning, ordered so earlier ones build toward later ones. Pitch the scope at their level: a broad topic should be narrowed to what actually matters first, not summarised shallowly.
 
 Respond with ONLY JSON, no markdown:
 {"subject":"<the topic, tidied up>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
@@ -208,7 +209,7 @@ Respond with ONLY JSON, no markdown:
 export const DIRECT_TEXT_MAX = 6000;
 
 export const DOCUMENT_SYSTEM = `You read the text of a document a student uploaded (a PDF, Word document, text file, or web page) and pull out the key concepts they need to learn from it.`;
-export const DOCUMENT_PROMPT = (text) => `Identify the seven most important concepts to study from this document. Respond with ONLY JSON, no markdown:
+export const DOCUMENT_PROMPT = (text, startingTrees = 7) => `Identify the ${startingTrees} most important concepts to study from this document. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}
 
 DOCUMENT:
@@ -246,7 +247,7 @@ ${listing}`;
 // model as a native document block, exactly like a photo - read once, never
 // stored, no sources row.
 export const SCAN_SYSTEM = `You look at a document image (a scanned page with no selectable text) and pull out the key concepts a student needs to learn from it.`;
-export const SCAN_PROMPT = `Identify the seven most important concepts to study from this document. Respond with ONLY JSON, no markdown:
+export const SCAN_PROMPT = (startingTrees = 7) => `Identify the ${startingTrees} most important concepts to study from this document. Respond with ONLY JSON, no markdown:
 {"subject":"<subject or topic>","concepts":[{"name":"<short concept name>","note":"<a few words on what it is>"}]}`;
 
 export const SAMPLE = {
@@ -264,10 +265,10 @@ export const SAMPLE = {
 export const uid = () => Math.random().toString(36).slice(2, 9);
 export const statusOf = (m) => (m < 40 ? "Needs work" : m < 75 ? "Getting there" : "Solid");
 export const nextLabel = (m) => (m < 40 ? "in 20 min" : m < 75 ? "tomorrow" : "in 3 days");
-export function growthLabel(days, mastery) {
+export function growthLabel(days, mastery, threshold = 1) {
   if (days === 0 && mastery < 10) return "Just planted";
   if (mastery >= 85) return "Flourishing";
-  return ["Just planted", "Sprouting", "Sapling", "Young tree", "Full grown", "Towering"][Math.min(5, days)];
+  return ["Just planted", "Sprouting", "Sapling", "Young tree", "Full grown", "Towering"][Math.min(5, Math.floor(days / threshold))];
 }
 export function canopyColor(m) {
   if (m < 40) return { light: "#C2CE9A", main: "#A7B87F", dark: "#7E8F58" };  // pale, needs work

@@ -201,7 +201,7 @@ export default function Home({ g }) {
             </div>
             <input ref={fileRef} type="file" accept="image/*,.pdf,.docx,.txt,text/plain,application/pdf" multiple onChange={handleShare} style={{ display: "none" }} />
 
-            {!has && !hideSample && (
+            {!has && !hideSample && g.settings.sample_grove && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
                 <button onClick={startPreview} style={{ flex: 1, background: "transparent", border: `1.5px dashed ${C.line}`, cursor: "pointer", padding: 12, borderRadius: 14, color: C.primary, fontWeight: 700, fontSize: 13.5 }}>
                   See what a grown grove looks like
@@ -236,7 +236,7 @@ export default function Home({ g }) {
                 <div style={{ background: C.bg, borderRadius: 16, padding: 4 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>
                 <div style={{ flex: 1 }}>
                   <div className="disp" style={{ fontSize: 21, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700 }}>{growthLabel(c.days, c.mastery)}</div>
+                  <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700 }}>{growthLabel(c.days, c.mastery, g.settings.mastery_threshold)}</div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
