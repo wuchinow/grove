@@ -789,6 +789,11 @@ export function useGrove() {
       if (!id) { setError("Couldn't create a grove for this. Try again."); setScreen("home"); return; }
       setConcepts(fresh);
       all = fresh;
+    } else if (!student) {
+      // A guest's grove lives only in this tab: there is no row to merge
+      // against and no session to call the server with.
+      all = [...concepts, ...fresh];
+      setConcepts(all);
     } else {
       // Merge server-side against the row's own current concepts, rather than
       // trusting local state (which may not be fully settled yet) to already

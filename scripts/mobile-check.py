@@ -25,7 +25,8 @@ run_grove_ops is the exception: no screenshots, all assertions. It is the
 regression test for the grove-wipe bug class (Sep 8, Sep 11) - in Chromium
 and WebKit it checks that no request to /api/grove naming an existing grove
 ever carries a concepts array, through a slow load, a failed load, a
-finished session, a failed save and its retry, and a page hide.
+finished session, a failed save and its retry, and a page hide - and that
+a guest's grove, which lives only in the tab, never reaches the server.
 """
 import argparse
 import json
@@ -723,8 +724,38 @@ def run_grove_ops(base_url: str):
             assert beacons(page) == [], f"[{engine}] sent a beacon after a failed grove load: {beacons(page)}"
             page.close()
 
+            # -- Guest: a grove held only in this tab. Adding a second batch to
+            # the open grove must work and must never call /api/grove - the
+            # add-to-existing path used to go to the server for everyone, so a
+            # guest (no session) got "Couldn't add to this grove".
+            page = browser.new_page(viewport={"width": 375, "height": HEIGHT})
+            page.emulate_media(reduced_motion="reduce")
+            grove_requests = []
+            page.on("request", lambda r: grove_requests.append(f"{r.method} {r.url}") if "/api/grove" in r.url else None)
+            page.route("**/api/anthropic", mock_anthropic)
+            page.goto(base_url, wait_until="networkidle")
+            guest_btn = page.get_by_text("Continue as a guest")
+            if guest_btn.count():
+                guest_btn.click()
+            for planted in (2, 4):
+                topic_input = page.get_by_placeholder("A topic, or paste a URL")
+                topic_input.fill("Test topic")
+                topic_input.press("Enter")
+                page.wait_for_selector("text=Here's what I found", timeout=10000)
+                page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
+                # Planted, then auto-advanced into the session - or bounced Home with the error.
+                failed = page.get_by_text("Couldn't add to this grove")
+                page.get_by_text("What is 2 + 2").or_(failed).first.wait_for(timeout=10000)
+                assert not failed.count(), f"[{engine}] a guest couldn't add to their open grove"
+                page.get_by_text("← Back to my grove").click()
+                page.wait_for_selector(".treeLabel", timeout=10000)
+                trees = page.locator(".treeLabel").count()
+                assert trees == planted, f"[{engine}] guest grove should hold {planted} trees, has {trees}"
+            assert grove_requests == [], f"[{engine}] a guest's grove reached the server: {grove_requests}"
+            page.close()
+
             browser.close()
-            print(f"  [{engine}] grove ops: slow load, answer, retry, hide, failed load all hold")
+            print(f"  [{engine}] grove ops: slow load, answer, retry, hide, failed load, guest add all hold")
     print("Grove-ops checks passed")
 
 
