@@ -158,9 +158,6 @@ export default function SettingsPage() {
         <TuningRow label="Starting trees" caption="How many concepts a new grove starts with. The student can still add or remove after.">
           <Stepper value={tuning.starting_trees} min={3} max={12} onChange={(v) => setTuningField("starting_trees", v)} />
         </TuningRow>
-        <TuningRow label="Mastery threshold" caption="Sessions before a tree advances a stage. Mastery is derived from session count at read time, so changing this re-stages every existing tree immediately - including shrinking ones that were already mature.">
-          <Pills options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: String(n) }))} value={tuning.mastery_threshold} onChange={(v) => setTuningField("mastery_threshold", v)} />
-        </TuningRow>
         <TuningRow label="Interest analogies">
           <Pills options={[{ value: true, label: "On" }, { value: false, label: "Off" }]} value={tuning.interest_analogies} onChange={(v) => setTuningField("interest_analogies", v)} />
         </TuningRow>

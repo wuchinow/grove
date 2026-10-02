@@ -4,6 +4,7 @@ import React from "react";
 import { C } from "../lib/theme";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
+import { STAGE_NAMES } from "../lib/growth";
 
 // A full screen rather than a sheet, so it matches Progress: back top-left, room
 // to read, and no button stranded at the bottom of a scrolling panel.
@@ -38,10 +39,10 @@ export default function Help({ g }) {
             Tap any tree to start a session: one concept, about 4 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
           </Step>
           <Step title="3. Finish to grow it">
-            Every completed session makes that tree one stage taller: seedling, sprouting, sapling, young tree, full grown, towering. Five sessions gets it to full size.
+            Every completed session makes that tree one stage taller: {STAGE_NAMES.slice(1).map((s) => s.toLowerCase()).join(", ")}. Seven sessions gets it to full size.
           </Step>
-          <Step title="Green means you know it">
-            Right answers deepen the colour, wrong ones fade it slightly. A hint or an honest &ldquo;I don't know&rdquo; costs nothing, so there's no reason to guess.
+          <Step title="A hint costs nothing">
+            Progress shows how well you know each concept: right answers raise it, wrong ones lower it slightly. A hint or an honest &ldquo;I don't know&rdquo; costs nothing, so there's no reason to guess.
           </Step>
           <Step title="No streaks, no daily quota">
             Do six sessions today and none tomorrow. The grove just reflects the work you've done.

@@ -20,7 +20,6 @@ export const DEFAULT_SETTINGS = {
   model: "claude-sonnet-5",          // must be a MODELS id
   effort: "low",                      // matches the tutor's effort before this setting existed
   starting_trees: 7,
-  mastery_threshold: 1,               // sessions per stage; 1 matches behavior before this setting existed
   interest_analogies: true,
   sample_grove: true,
 };
@@ -30,18 +29,12 @@ export function clampStartingTrees(n) {
   return Number.isFinite(v) ? Math.min(12, Math.max(3, v)) : DEFAULT_SETTINGS.starting_trees;
 }
 
-export function clampMasteryThreshold(n) {
-  const v = Math.round(Number(n));
-  return Number.isFinite(v) ? Math.min(5, Math.max(1, v)) : DEFAULT_SETTINGS.mastery_threshold;
-}
-
 export function withDefaults(row) {
   const r = row || {};
   return {
     model: MODELS.some((m) => m.id === r.model) ? r.model : DEFAULT_SETTINGS.model,
     effort: ["low", "medium", "high"].includes(r.effort) ? r.effort : DEFAULT_SETTINGS.effort,
     starting_trees: r.starting_trees != null ? clampStartingTrees(r.starting_trees) : DEFAULT_SETTINGS.starting_trees,
-    mastery_threshold: r.mastery_threshold != null ? clampMasteryThreshold(r.mastery_threshold) : DEFAULT_SETTINGS.mastery_threshold,
     interest_analogies: r.interest_analogies != null ? !!r.interest_analogies : DEFAULT_SETTINGS.interest_analogies,
     sample_grove: r.sample_grove != null ? !!r.sample_grove : DEFAULT_SETTINGS.sample_grove,
   };
@@ -54,7 +47,6 @@ export function publicSettings(row) {
   const s = withDefaults(row);
   return {
     starting_trees: s.starting_trees,
-    mastery_threshold: s.mastery_threshold,
     interest_analogies: s.interest_analogies,
     sample_grove: s.sample_grove,
   };
@@ -67,7 +59,7 @@ export function publicSettings(row) {
 // visitor, which is fine at beta scale - a short in-memory cache is the
 // first thing to add if it ever shows up in timing.
 export async function fetchPublicSettings(c) {
-  const r = await fetch(`${c.rest}/settings?id=eq.1&select=starting_trees,mastery_threshold,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
+  const r = await fetch(`${c.rest}/settings?id=eq.1&select=starting_trees,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
   const rows = r.ok ? await r.json() : [];
   return publicSettings(rows[0]);
 }

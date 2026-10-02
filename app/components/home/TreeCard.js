@@ -2,6 +2,7 @@
 
 import { C } from "../../lib/theme";
 import { statusOf, growthLabel, canopyColor } from "../../lib/ai";
+import { stageOf, STAGE_MAX } from "../../lib/growth";
 import Tree from "../Tree";
 import Icon from "../Icon";
 
@@ -21,7 +22,7 @@ export default function TreeCard({ g }) {
           <div style={{ background: C.bg, borderRadius: 16, padding: 4 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>
           <div style={{ flex: 1 }}>
             <div className="disp" style={{ fontSize: 21, fontWeight: 600 }}>{c.name}</div>
-            <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700 }}>{growthLabel(c.days, c.mastery, g.settings.mastery_threshold)}</div>
+            <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700 }}>{growthLabel(c.days)}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -30,13 +31,13 @@ export default function TreeCard({ g }) {
             <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>how well you know it</div>
           </div>
           <div style={{ flex: 1, background: C.bg, borderRadius: 14, padding: "12px 14px" }}>
-            <div className="disp" style={{ fontSize: 17, fontWeight: 700 }}>{Math.min(5, c.days)} of 5</div>
+            <div className="disp" style={{ fontSize: 17, fontWeight: 700 }}>{stageOf(c.days)} of {STAGE_MAX}</div>
             <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>sessions to full size</div>
           </div>
         </div>
         <div style={{ marginTop: 14, display: "flex", gap: 5 }}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < Math.min(5, c.days) ? C.sageDeep : C.line }} />
+          {Array.from({ length: STAGE_MAX }, (_, i) => (
+            <div key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < stageOf(c.days) ? C.sageDeep : C.line }} />
           ))}
         </div>
         <div style={{ marginTop: 8, fontSize: 13, color: C.sub, fontWeight: 700, textAlign: "center" }}>{nextStage(c)}</div>

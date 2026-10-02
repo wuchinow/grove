@@ -2,8 +2,9 @@
 
 AI study coach for kids. A student photographs their schoolwork, the app pulls out
 the key concepts, then runs a Socratic tutoring session (question, hint, explain,
-check) on each one. Progress shows as a grove of trees: taller with more days
-practiced, greener/fuller with higher mastery.
+check) on each one. Progress shows as a grove of trees: each completed session
+makes a tree one stage taller, seven stages to full size. How well each concept
+is known shows on the Progress screen, not on the tree.
 
 Adapted from Phil's original single-file prototype (`grove-demo.jsx`) into a real
 Next.js app that can run outside the Claude sandbox.
