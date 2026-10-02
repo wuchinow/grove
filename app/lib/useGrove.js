@@ -5,6 +5,7 @@ import { callAPI, parseJSON, fileToImage, fileToBase64, tutorSystem, tutorSeed, 
 import { soundEnabled, playMiss, playSolid, playSessionComplete } from "./sound";
 import { DEFAULT_SETTINGS } from "./settings";
 import { nextMastery, MAX_OPS } from "./groveOps";
+import { nextStageLine } from "./growth";
 
 // ---- useGrove --------------------------------------------------------------
 // A student can have several groves, one per subject. This hook owns: the
@@ -37,7 +38,7 @@ export function useGrove() {
   const [profile, setProfile] = useState(null);   // { grade } once set up
   const [insights, setInsights] = useState([]);   // short notes from past sessions, for tutor calibration
   // Public subset of the admin Tuning settings (starting_trees,
-  // mastery_threshold, interest_analogies, sample_grove), read once at boot
+  // interest_analogies, sample_grove), read once at boot
   // from /api/auth/session or /api/student. Defaults match pre-Tuning
   // behavior exactly, so a failed fetch is invisible to the student.
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -737,14 +738,7 @@ export function useGrove() {
   }
 
   function nextStage(c) {
-    const stages = ["Just planted", "Sprouting", "Sapling", "Young tree", "Full grown", "Towering"];
-    const threshold = settings.mastery_threshold || 1;
-    const i = Math.min(5, Math.floor(c.days / threshold));
-    if (i >= 5) return "Fully grown. Come back to it whenever you want to keep it green.";
-    const remaining = (i + 1) * threshold - c.days;
-    return remaining === 1
-      ? `Finish one more session to become a ${stages[i + 1]}.`
-      : `Finish ${remaining} more sessions to become a ${stages[i + 1]}.`;
+    return nextStageLine(c.days);
   }
   // Clearing is its own explicit op, and removing names the one tree to go, so
   // neither depends on this tab's idea of what else the grove holds: a tab

@@ -26,7 +26,7 @@ export async function GET() {
   const me = await requireAdmin(c);
   if (!me) return Response.json({ error: "Not found." }, { status: 404 });
 
-  const r = await fetch(`${c.rest}/settings?id=eq.1&select=fixed_costs,price_per_month,model,effort,starting_trees,mastery_threshold,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
+  const r = await fetch(`${c.rest}/settings?id=eq.1&select=fixed_costs,price_per_month,model,effort,starting_trees,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
   if (!r.ok) return Response.json({ error: "Database read failed." }, { status: 502 });
   const rows = await r.json();
   const row = rows[0] || {};
@@ -68,11 +68,6 @@ function cleanTuning(t) {
     if (!Number.isFinite(v) || v < 3 || v > 12) return null;
     out.starting_trees = v;
   }
-  if (t.mastery_threshold !== undefined) {
-    const v = Math.round(Number(t.mastery_threshold));
-    if (!Number.isFinite(v) || v < 1 || v > 5) return null;
-    out.mastery_threshold = v;
-  }
   if (t.interest_analogies !== undefined) out.interest_analogies = !!t.interest_analogies;
   if (t.sample_grove !== undefined) out.sample_grove = !!t.sample_grove;
   return out;
@@ -111,7 +106,7 @@ export async function PUT(request) {
   const hasTuning = cleanedTuning !== undefined && Object.keys(cleanedTuning).length > 0;
   if (!hasCosts && !hasPrice && !hasTuning) return Response.json({ error: "Need fixed_costs, price_per_month, or tuning to write." }, { status: 400 });
 
-  const cur = await fetch(`${c.rest}/settings?id=eq.1&select=fixed_costs,price_per_month,model,effort,starting_trees,mastery_threshold,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
+  const cur = await fetch(`${c.rest}/settings?id=eq.1&select=fixed_costs,price_per_month,model,effort,starting_trees,interest_analogies,sample_grove`, { headers: c.db, cache: "no-store" });
   const rows = cur.ok ? await cur.json() : [];
   const row = rows[0] || {};
   const fixed_costs = hasCosts ? cleanedCosts : (Array.isArray(row.fixed_costs) ? row.fixed_costs : SEED_INFRASTRUCTURE);

@@ -10,8 +10,6 @@ import GroveBackdrop from "../GroveBackdrop";
 // the legend (or the empty-grove copy), and the stats strip under it.
 export default function GroveScene({ g }) {
   const { concepts, grewIds, justPlantedIds, setSelected } = g;
-  const flourishing = concepts.filter((c) => c.mastery >= 85).length;
-  const thirsty = concepts.filter((c) => c.mastery < 40).length;
   const has = concepts.length > 0;
   const ordered = [...concepts].sort((a, b) => b.days - a.days || b.mastery - a.mastery);
   const treeRowRef = React.useRef(null);
@@ -79,7 +77,7 @@ export default function GroveScene({ g }) {
             <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden", cursor: canScrollLeft ? "pointer" : "default" }}>
               <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
             </button>
-            <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions &middot; Greener = you know it better</div>
+            <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions</div>
             <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden", cursor: canScrollRight ? "pointer" : "default" }}>
               <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
             </button>
@@ -94,8 +92,6 @@ export default function GroveScene({ g }) {
       {has && (
         <div style={{ background: C.card, display: "flex", justifyContent: "space-around", padding: "13px 8px", fontSize: 12.5 }}>
           <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18 }}>{concepts.length}</div><div style={{ color: C.sub, fontWeight: 700 }}>Planted</div></div>
-          <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18, color: C.sageDeep }}>{flourishing}</div><div style={{ color: C.sub, fontWeight: 700 }}>Flourishing</div></div>
-          <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18, color: C.coral }}>{thirsty}</div><div style={{ color: C.sub, fontWeight: 700 }}>Needs work</div></div>
         </div>
       )}
     </div>

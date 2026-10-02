@@ -56,8 +56,8 @@ export function H({ children }) {
   return <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".05em", textTransform: "uppercase", color: C.sageDeep, margin: "26px 0 10px" }}>{children}</div>;
 }
 
-// Same three bands the student app uses, so a number reads the same here as
-// it does on a tree: pale under 40, mid green to 84, deep green at 85+.
+// Three mastery bands for the admin views: under 40, 40 to 84, 85 and up.
+// (Trees in the student app no longer show mastery; height is sessions only.)
 export const bandColor = (m) => (m < 40 ? C.coral : m < 85 ? C.sage : C.sageDeep);
 
 export const ago = (iso) => {

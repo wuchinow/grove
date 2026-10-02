@@ -5,7 +5,7 @@ import { fetchPublicSettings } from "../../../lib/settings";
 
 // Who am I, plus everything the app needs to boot for that person: profile,
 // insights, the light grove list, and the public subset of admin Tuning
-// settings (starting_trees, mastery_threshold, interest_analogies,
+// settings (starting_trees, interest_analogies,
 // sample_grove - model/effort are resolved server-side only, in
 // /api/anthropic, and never sent here). Replaces the old GET /api/student
 // for signed-in users. Returns { student: null } for a guest, never an

@@ -28,7 +28,7 @@ export default function GroveSwitcher({ g, onClose }) {
             const isActive = gr.id === activeGroveId;
             return (
               <div key={gr.id} style={{ background: isActive ? C.soft : C.bg, border: `1.5px solid ${isActive ? C.primary : C.line}`, borderRadius: 13, padding: "9px 10px", display: "flex", alignItems: "center", gap: 9 }}>
-                <div style={{ background: C.card, borderRadius: 9, padding: 3, flexShrink: 0 }}><Tree days={Math.min(5, gr.treeCount)} mastery={gr.treeCount ? 60 : 0} width={26} /></div>
+                <div style={{ background: C.card, borderRadius: 9, padding: 3, flexShrink: 0 }}><Tree days={gr.treeCount} mastery={gr.treeCount ? 60 : 0} width={26} /></div>
                 <button
                   onClick={() => (editingId === gr.id ? null : (openGrove(gr.id), onClose()))}
                   style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}

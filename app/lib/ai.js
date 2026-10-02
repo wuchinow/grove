@@ -15,6 +15,8 @@
 // turns (kind "tutor"/"tutor-retry") get an effort override there;
 // extraction, topic breakdown, and sections keep the API default, since
 // those aren't on the student's live typing-to-reply path.
+import { stageName } from "./growth.js";
+
 function withCacheBreakpoint(content) {
   const block = typeof content === "string" ? { type: "text", text: content } : { ...content };
   return { ...block, cache_control: { type: "ephemeral" } };
@@ -253,10 +255,10 @@ export const SCAN_PROMPT = (startingTrees = 7) => `Identify the ${startingTrees}
 export const SAMPLE = {
   subject: "Biology - Photosynthesis",
   concepts: [
-    { name: "Photosynthesis", note: "how plants make food from light", mastery: 92, days: 6 },
-    { name: "Chlorophyll", note: "the green pigment that captures light", mastery: 78, days: 4 },
-    { name: "Chloroplast", note: "where photosynthesis happens", mastery: 55, days: 3 },
-    { name: "Glucose", note: "the sugar plants produce", mastery: 40, days: 2 },
+    { name: "Photosynthesis", note: "how plants make food from light", mastery: 92, days: 7 },
+    { name: "Chlorophyll", note: "the green pigment that captures light", mastery: 78, days: 5 },
+    { name: "Chloroplast", note: "where photosynthesis happens", mastery: 55, days: 4 },
+    { name: "Glucose", note: "the sugar plants produce", mastery: 40, days: 3 },
     { name: "Light-dependent reactions", note: "the stage that needs sunlight", mastery: 22, days: 1 },
     { name: "Calvin cycle", note: "the stage that builds sugar", mastery: 0, days: 0 },
   ],
@@ -265,11 +267,11 @@ export const SAMPLE = {
 export const uid = () => Math.random().toString(36).slice(2, 9);
 export const statusOf = (m) => (m < 40 ? "Needs work" : m < 75 ? "Getting there" : "Solid");
 export const nextLabel = (m) => (m < 40 ? "in 20 min" : m < 75 ? "tomorrow" : "in 3 days");
-export function growthLabel(days, mastery, threshold = 1) {
-  if (days === 0 && mastery < 10) return "Just planted";
-  if (mastery >= 85) return "Flourishing";
-  return ["Just planted", "Sprouting", "Sapling", "Young tree", "Full grown", "Towering"][Math.min(5, Math.floor(days / threshold))];
-}
+// The stage name for a concept's completed sessions. A tree shows height and
+// nothing else, so this reads nothing from mastery (see growth.js).
+export const growthLabel = (days) => stageName(days);
+// Text colour for the status word on the tree card. It used to tint the tree's
+// canopy as well; the tree no longer shows mastery.
 export function canopyColor(m) {
   if (m < 40) return { light: "#C2CE9A", main: "#A7B87F", dark: "#7E8F58" };  // pale, needs work
   if (m < 75) return { light: "#7FA455", main: "#5F8A3C", dark: "#3F6428" };  // healthy green
