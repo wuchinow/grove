@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { callAPI, parseJSON, fileToImage, fileToBase64, tutorSystem, tutorSeed, EXTRACT_SYSTEM, EXTRACT_PROMPT, TOPIC_SYSTEM, TOPIC_PROMPT, DOCUMENT_SYSTEM, DOCUMENT_PROMPT, DIRECT_TEXT_MAX, splitParagraphs, SECTIONS_SYSTEM, SECTIONS_PROMPT, SCAN_SYSTEM, SCAN_PROMPT, SAMPLE, uid } from "./ai";
 import { soundEnabled, playMiss, playSolid, playSessionComplete } from "./sound";
 import { DEFAULT_SETTINGS } from "./settings";
+import { nextMastery, MAX_OPS } from "./groveOps";
 
 // ---- useGrove --------------------------------------------------------------
 // A student can have several groves, one per subject. This hook owns: the
@@ -63,12 +64,17 @@ export function useGrove() {
   const docRef = useRef(null);
   const [preview, setPreview] = useState(false);   // showing the sample grove, nothing saved
   const stash = useRef(null);                      // { concepts, activeGroveId, activeGroveName, loadedGroveId }, parked during a preview
-  // Autosave debounce bookkeeping (see the effect below): saveDeadline caps how
-  // long a burst of rapid changes can keep deferring the actual save; pendingSave
-  // holds the exact payload still waiting to go out, so a page-hide/pagehide
-  // listener can flush it immediately instead of losing it to page teardown.
-  const saveDeadline = useRef(null);
-  const pendingSave = useRef(null);
+  // The op queue (see enqueueOp below). A signed-in student's changes to an
+  // existing grove leave as small operations, never as a concepts array:
+  // opQueue holds [{ grove, student, op }] not yet sent, inFlight the one batch
+  // awaiting a response. All refs, so the timers and the page-hide listener
+  // always see the live queue rather than a stale render's copy.
+  const opQueue = useRef([]);
+  const inFlight = useRef(null);
+  const flushScheduled = useRef(false);
+  const retryTimer = useRef(null);
+  const retryDelay = useRef(0);
+  const conceptsRef = useRef(concepts);   // the latest concepts, for code running after an await
 
   // Multiple groves per person. `groves` is the light list (id, name, tree
   // count) for the switcher; opening one loads its full concepts. For an
@@ -78,11 +84,14 @@ export function useGrove() {
   const [activeGroveId, setActiveGroveId] = useState(null);
   const [activeGroveName, setActiveGroveName] = useState("");
   // Set only once a grove's concepts are known-good in state (a fetch that
-  // resolved, a local/guest grove, or a grove just created). The autosave
-  // effect below requires this to match activeGroveId before it's allowed to
-  // fire, so a save scheduled while a grove is mid-load can never land - the
-  // race that wiped Asher's grove (Sep 8) and Phil's (today).
+  // resolved, a local/guest grove, or a grove just created). enqueueOp below
+  // requires this to match the grove before it queues a concept-level op, so
+  // nothing can be sent against a grove that is mid-load - the race behind
+  // the Sep 8 and Sep 11 grove wipes.
   const [loadedGroveId, setLoadedGroveId] = useState(null);
+  // Mirrors activeGroveId for openGrove, which has to know after its fetch
+  // resolves whether that grove is still the one that's open.
+  const activeGroveRef = useRef(null);
   const [newGroveName, setNewGroveName] = useState("");
   const [showNewGrove, setShowNewGrove] = useState(false);
   const localGroves = useRef({});
@@ -105,7 +114,9 @@ export function useGrove() {
   // the student's own turn) is DOM-dependent and owned by Tutor.js, which has
   // the message refs.
 
-  useEffect(() => () => { if (plantTimeout.current) clearTimeout(plantTimeout.current); }, []);
+  useEffect(() => () => { if (plantTimeout.current) clearTimeout(plantTimeout.current); if (retryTimer.current) clearTimeout(retryTimer.current); }, []);
+  useEffect(() => { conceptsRef.current = concepts; }, [concepts]);
+  useEffect(() => { activeGroveRef.current = activeGroveId; }, [activeGroveId]);
 
   // Who is this? Three answers, in order of preference:
   //   account - a session cookie names a signed-in student (the normal case)
@@ -252,60 +263,104 @@ export function useGrove() {
     fetch("/api/student", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, profile }) }).catch(() => {});
   }, [profile, student, loaded]);
 
-  // Save the open grove's concepts whenever they change (debounced), for a
-  // named student only. Never sends allowEmpty - clearGrove() and removeTree()
-  // send their own immediate, explicit request for that (see below), so any
-  // other path that lands on an empty array is refused server-side.
+  // Saving an existing grove, for a named student only. There is no autosave
+  // of `concepts`: the whole-array PUT that used to fire whenever concepts
+  // changed is how a stale or empty client could replace a grove (Sep 8,
+  // Sep 11). Each change is queued as an operation instead - set mastery by
+  // id, count a session by id, remove by id, rename, clear - and /api/grove
+  // applies it to the row's own current concepts (see lib/groveOps.js).
+  // Loading a grove, leaving the sample preview, or creating a grove writes
+  // nothing at all.
   //
-  // Debounced, but capped: a burst of rapid changes (e.g. studying the same
-  // concept back-to-back) keeps resetting a flat 800ms timer indefinitely,
-  // which is exactly what let Phil's grove sit unsaved for minutes today even
-  // though sessions kept completing. saveDeadline bounds how long a single
-  // burst can defer the actual write to ~4s from its first change.
-  useEffect(() => {
-    if (!student || !loaded || preview || !activeGroveId || loadedGroveId !== activeGroveId) return;
-    const now = Date.now();
-    if (!saveDeadline.current) saveDeadline.current = now + 4000;
-    const wait = Math.min(800, Math.max(0, saveDeadline.current - now));
+  // `groveId` defaults to the open grove; rename passes its own, since any
+  // grove in the switcher can be renamed. Concept-level ops are refused for a
+  // grove whose load hasn't settled.
+  function enqueueOp(op, groveId = activeGroveId) {
+    if (!student || preview || !groveId) return;
+    if (op.op !== "rename" && loadedGroveId !== groveId) return;
+    const q = opQueue.current;
+    const last = q[q.length - 1];
+    // Two mastery values for one concept back to back: only the later matters.
+    if (op.op === "mastery" && last && last.grove === groveId && last.op.op === "mastery" && last.op.concept === op.concept) last.op = op;
+    else q.push({ grove: groveId, student, op });
     setSaveState("saving");
-    const payload = { student, id: activeGroveId, name: activeGroveName, concepts };
-    pendingSave.current = payload;
-    const t = setTimeout(() => {
-      saveDeadline.current = null;
-      fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-        .then((r) => setSaveState(r.ok ? "saved" : "error"))
-        .catch(() => setSaveState("error"))
-        .finally(() => { if (pendingSave.current === payload) pendingSave.current = null; });
-    }, wait);
-    return () => clearTimeout(t);
-  }, [concepts, student, loaded, preview, activeGroveId, activeGroveName, loadedGroveId]);
+    if (flushScheduled.current) return;
+    // Next tick, so ops queued together (a final answer's mastery and its
+    // session count) leave in one request.
+    flushScheduled.current = true;
+    setTimeout(() => { flushScheduled.current = false; flushQueue(); }, 0);
+  }
 
-  // Safety net for the gap above: if the tab closes, the app is backgrounded,
-  // or the page otherwise tears down before the debounced save fires, whatever
-  // is still in pendingSave would be lost to a normal fetch. sendBeacon is
-  // built to survive exactly this; it's POST-only, so /api/grove aliases POST
-  // to the same handler as PUT. Falls back to a keepalive fetch if sendBeacon
-  // isn't available. The scheduled timeout above is left alone - if the page
-  // doesn't actually go away, it still fires and harmlessly re-sends the same
-  // (idempotent, full-snapshot) payload.
+  // One batch in flight at a time; the next leaves only after this one
+  // resolves, so ops reach the server in the order they happened. A batch that
+  // fails goes back to the front of the queue and is retried - an op is the
+  // only record of that change, so it's never dropped for a network error or
+  // a busy server. Only a batch the server says can never apply (400, or the
+  // grove is gone) is let go. Reads nothing but refs, so a timer holding an
+  // old render's copy of this function still sees the live queue.
+  function flushQueue() {
+    if (inFlight.current || !opQueue.current.length) return;
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }
+    const q = opQueue.current;
+    const { grove, student: who } = q[0];
+    let n = 0;
+    while (n < q.length && n < MAX_OPS && q[n].grove === grove) n++;
+    const batch = q.splice(0, n);
+    inFlight.current = batch;
+    const settle = (outcome) => {
+      inFlight.current = null;
+      if (outcome === "retry") {
+        opQueue.current.unshift(...batch);
+        setSaveState("error");
+        retryDelay.current = Math.min(30000, retryDelay.current ? retryDelay.current * 2 : 2000);
+        retryTimer.current = setTimeout(() => { retryTimer.current = null; flushQueue(); }, retryDelay.current);
+        return;
+      }
+      retryDelay.current = 0;
+      if (outcome === "dropped") console.error("[grove] the server refused a batch of changes; not retrying", batch.map((e) => e.op));
+      if (opQueue.current.length) flushQueue();
+      else setSaveState(outcome === "dropped" ? "error" : "saved");
+    };
+    // keepalive lets a batch already on its way survive the page closing.
+    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student: who, id: grove, ops: batch.map((e) => e.op) }), keepalive: true })
+      .then((r) => settle(r.ok ? "sent" : (r.status === 400 || r.status === 404) ? "dropped" : "retry"))
+      .catch(() => settle("retry"));
+  }
+
+  // If the tab closes or the app is backgrounded, whatever is still queued
+  // would be lost to page teardown. sendBeacon is built to survive exactly
+  // this; it's POST-only, so /api/grove aliases POST to the same handler as
+  // PUT. It sends only what hasn't been sent yet - the batch in flight is
+  // already on its way - and what it hands off leaves the queue, so nothing is
+  // sent twice if the page carries on. Coming back online retries the queue.
   useEffect(() => {
-    function flush() {
-      const payload = pendingSave.current;
-      if (!payload) return;
-      pendingSave.current = null;
-      try {
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon("/api/grove", new Blob([JSON.stringify(payload)], { type: "application/json" }));
-        } else {
-          fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
-        }
-      } catch {}
+    function flushOnHide() {
+      const q = opQueue.current;
+      if (!q.length) return;
+      if (!navigator.sendBeacon) { flushQueue(); return; }
+      const groups = [];
+      for (const e of q) {
+        const g = groups.find((x) => x.grove === e.grove);
+        if (g) g.ops.push(e.op);
+        else groups.push({ grove: e.grove, student: e.student, ops: [e.op] });
+      }
+      const handedOff = [];
+      for (const g of groups) {
+        try {
+          const body = JSON.stringify({ student: g.student, id: g.grove, ops: g.ops });
+          if (navigator.sendBeacon("/api/grove", new Blob([body], { type: "application/json" }))) handedOff.push(g.grove);
+        } catch {}
+      }
+      opQueue.current = q.filter((e) => !handedOff.includes(e.grove));
+      if (!opQueue.current.length && !inFlight.current) setSaveState("saved");
     }
-    function onVisibility() { if (document.visibilityState === "hidden") flush(); }
+    function onVisibility() { if (document.visibilityState === "hidden") flushOnHide(); }
+    function onOnline() { flushQueue(); }
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", flush);
-    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("pagehide", flush); };
-  }, []);
+    window.addEventListener("pagehide", flushOnHide);
+    window.addEventListener("online", onOnline);
+    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("pagehide", flushOnHide); window.removeEventListener("online", onOnline); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The anonymous equivalent: keep the in-memory copy of the open grove in
   // sync as it's edited, so switching away and back doesn't lose the work.
@@ -327,13 +382,10 @@ export function useGrove() {
       setGrewIds([]); setSelected(null); setScreen("home");
       return;
     }
-    // Block autosave for the duration of the load, even if activeGroveId is
-    // switched again before this fetch resolves (loadedGroveId then won't
-    // match whatever id is active by the time it settles, so a late response
-    // can't write a stale/empty snapshot over a grove the student has since
-    // moved away from, or into).
+    // Nothing can be queued against this grove for the duration of the load
+    // (enqueueOp requires loadedGroveId to match).
     setLoadedGroveId(null);
-    saveDeadline.current = null;
+    activeGroveRef.current = id;
     setActiveGroveId(id);
     setActiveGroveName(entry ? entry.name : "");
     setConcepts([]); setGrewIds([]); setSelected(null);
@@ -341,13 +393,16 @@ export function useGrove() {
     try {
       const r = await fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(student)}`);
       const j = r.ok ? await r.json() : null;
-      // A failed load must never fall through to an empty grove: the autosave
-      // effect below would then write that empty array back over real data
-      // 800ms later. Bail out to the grove list instead of pretending this
-      // grove is legitimately empty.
+      // A response for a grove that is no longer the open one is dropped
+      // whole: applying it would show this grove's trees under another
+      // grove's id. Whatever opened since owns the screen.
+      if (activeGroveRef.current !== id) return;
+      // A failed load must never fall through to an empty grove. Bail out to
+      // the grove list instead of pretending this grove is legitimately empty.
       if (j) { setConcepts(Array.isArray(j.concepts) ? j.concepts : []); setActiveGroveName(j.name || (entry ? entry.name : "")); setLoadedGroveId(id); }
       else { setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again."); }
     } catch {
+      if (activeGroveRef.current !== id) return;
       setActiveGroveId(null); setActiveGroveName(""); setError("Couldn't load that grove. Try again.");
     }
     setScreen("home");
@@ -390,8 +445,7 @@ export function useGrove() {
     if (!clean) return;
     setGroves((prev) => prev.map((g) => (g.id === id ? { ...g, name: clean } : g)));
     if (id === activeGroveId) setActiveGroveName(clean);
-    if (!student) return;
-    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id, name: clean }) }).catch(() => {});
+    enqueueOp({ op: "rename", name: clean }, id);
   }
 
   function deleteGrove(id, name) {
@@ -399,6 +453,7 @@ export function useGrove() {
     setGroves((prev) => prev.filter((g) => g.id !== id));
     if (id === activeGroveId) { setActiveGroveId(null); setActiveGroveName(""); setConcepts([]); setGrewIds([]); setSelected(null); }
     if (!student) { delete localGroves.current[id]; return; }
+    opQueue.current = opQueue.current.filter((e) => e.grove !== id);   // nothing left to save into
     fetch(`/api/grove?id=${encodeURIComponent(id)}&student=${encodeURIComponent(student)}`, { method: "DELETE" }).catch(() => {});
   }
 
@@ -677,7 +732,6 @@ export function useGrove() {
   function exitPreview() {
     const prev = stash.current || { concepts: [], activeGroveId: null, activeGroveName: "", loadedGroveId: null };
     setConcepts(prev.concepts); setActiveGroveId(prev.activeGroveId); setActiveGroveName(prev.activeGroveName); setLoadedGroveId(prev.loadedGroveId);
-    saveDeadline.current = null;
     stash.current = null;
     setPreview(false); setSelected(null); setGrewIds([]); setScreen("home");
   }
@@ -692,26 +746,21 @@ export function useGrove() {
       ? `Finish one more session to become a ${stages[i + 1]}.`
       : `Finish ${remaining} more sessions to become a ${stages[i + 1]}.`;
   }
-  // Going to zero trees is the one legitimate reason to overwrite a non-empty
-  // concepts array with an empty one, so these two send allowEmpty explicitly
-  // and immediately - outside the debounced autosave effect, which never
-  // sends it - so a later unrelated re-render within the debounce window can
-  // never cancel or drop the deliberate write.
-  function persistEmptyGrove() {
-    if (!student || !activeGroveId) return;
-    fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, concepts: [], allowEmpty: true }) }).catch(() => {});
-  }
+  // Clearing is its own explicit op, and removing names the one tree to go, so
+  // neither depends on this tab's idea of what else the grove holds: a tab
+  // that believes it is removing the last tree removes exactly that tree,
+  // whatever the row has gained elsewhere since.
   function clearGrove() {
     if (!window.confirm("Clear every tree in this grove? This can't be undone.")) return;
     setConcepts([]); setGrewIds([]); setSelected(null);
-    persistEmptyGrove();
+    enqueueOp({ op: "clear" });
   }
   function removeTree(id) {
     const c = concepts.find((x) => x.id === id);
     if (!c || !window.confirm(`Remove "${c.name}" from your grove?`)) return;
     const next = concepts.filter((x) => x.id !== id);
     setConcepts(next); setSelected(null);
-    if (next.length === 0) persistEmptyGrove();
+    enqueueOp({ op: "remove", concept: id });
   }
 
   // Confirming a fresh batch of concepts. If no grove is open, this is the
@@ -743,12 +792,16 @@ export function useGrove() {
     } else {
       // Merge server-side against the row's own current concepts, rather than
       // trusting local state (which may not be fully settled yet) to already
-      // be complete - same race class as the load race above.
+      // be complete - same race class as the load race above. Sent directly
+      // rather than queued, since planting waits on the answer.
       try {
-        const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, append: fresh }) });
+        const r = await fetch("/api/grove", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student, id: activeGroveId, ops: [{ op: "append", concepts: fresh }] }) });
         const j = r.ok ? await r.json() : null;
         if (!j || !Array.isArray(j.concepts)) { setError("Couldn't add to this grove. Try again."); setScreen("home"); return; }
-        all = j.concepts;
+        // The row's array is the truth, unless a change made here hasn't
+        // reached it yet - adopting it then would show that change undone.
+        const unsent = opQueue.current.some((e) => e.grove === activeGroveId) || (inFlight.current && inFlight.current[0].grove === activeGroveId);
+        all = unsent ? [...conceptsRef.current, ...fresh] : j.concepts;
         setConcepts(all);
       } catch {
         setError("Couldn't add to this grove. Try again."); setScreen("home"); return;
@@ -841,16 +894,16 @@ export function useGrove() {
     const fallbackMsg = (j.message || "").trim() || "Let's keep going.";
     return { text, j: { ...j, message: `${fallbackMsg}\n\n**What would you like to do next?**`, options: [], correctOption: "" } };
   }
+  // The formula lives in groveOps.js (nextMastery). The new value is what gets
+  // sent: a turn that leaves mastery unchanged ("unknown" - a hint, or an
+  // honest "I don't know") changes no state and sends nothing.
   function updateMastery(id, understanding) {
-    setConcepts((prev) => prev.map((c) => {
-      if (c.id !== id) return c;
-      let m = c.mastery;
-      if (understanding === "solid") m = Math.round(m * 0.3 + 92 * 0.7);        // correct: strong gain
-      else if (understanding === "partial") m = Math.round(m * 0.5 + 66 * 0.5); // partly right: some gain
-      else if (understanding === "struggling") m = m - 6;                        // a miss: never adds, can only dip
-      // "unknown" (a hint, or an honest "I don't know") leaves it unchanged
-      return { ...c, mastery: Math.max(0, Math.min(100, m)) };
-    }));
+    const c = conceptsRef.current.find((x) => x.id === id);
+    if (!c) return;
+    const value = nextMastery(c.mastery, understanding);
+    if (value === c.mastery) return;
+    setConcepts((prev) => prev.map((x) => (x.id === id ? { ...x, mastery: value } : x)));
+    enqueueOp({ op: "mastery", concept: id, value });
   }
   async function send(raw) {
     const val = (raw ?? input).trim();
@@ -888,6 +941,8 @@ export function useGrove() {
       if (j.phase === "done") {
         const doneConcept = concepts.find((c) => c.id === activeId);
         setConcepts((prev) => prev.map((c) => c.id === activeId ? { ...c, days: c.days + 1, reviews: c.reviews + 1 } : c));
+        // opId: if this op is ever sent twice, the session still counts once.
+        enqueueOp({ op: "session", concept: activeId, opId: uid() });
         setGrewIds((g) => (g.includes(activeId) ? g : [...g, activeId]));
         // A short, concrete note for next time - saved to the student record, not
         // the grove, since it's about the learner rather than any one concept.
