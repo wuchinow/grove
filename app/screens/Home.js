@@ -2,50 +2,20 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import { statusOf, growthLabel, canopyColor } from "../lib/ai";
-import Tree from "../components/Tree";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
-import GroveBackdrop from "../components/GroveBackdrop";
 import GroveSwitcher from "../components/GroveSwitcher";
-import AccountMenu from "../components/AccountMenu";
 import AuthCard from "../components/AuthCard";
+import GroveHeader from "../components/home/GroveHeader";
+import GroveScene from "../components/home/GroveScene";
+import StudyInput from "../components/home/StudyInput";
+import TreeCard from "../components/home/TreeCard";
 
 export default function Home({ g }) {
-  const { activeGroveId, activeGroveName, auth, authCard, clearGrove, concepts, error, exitPreview, fileRef, grewIds, groves, grovesLoaded, handleStudy, justPlantedIds, nextStage, openGrove, preview, removeTree, saveState, selected, setAuthCard, setScreen, setSelected, setShowNewGrove, setTopicText, startPreview, startSession, studyEverything, student, topicText } = g;
+  const { activeGroveId, auth, authCard, clearGrove, concepts, error, exitPreview, grewIds, groves, grovesLoaded, openGrove, preview, saveState, selected, setAuthCard, startPreview, studyEverything, student } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
-  const flourishing = concepts.filter((c) => c.mastery >= 85).length;
-  const thirsty = concepts.filter((c) => c.mastery < 40).length;
   const has = concepts.length > 0;
-  const ordered = [...concepts].sort((a, b) => b.days - a.days || b.mastery - a.mastery);
-  const treeRowRef = React.useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
-  const [canScrollRight, setCanScrollRight] = React.useState(false);
-
-  // Measures the real scroll position rather than guessing from tree count,
-  // since how many fit without scrolling depends on the actual screen width.
-  const updateScrollState = React.useCallback(() => {
-    const el = treeRowRef.current;
-    if (!el) { setCanScrollLeft(false); setCanScrollRight(false); return; }
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
-  }, []);
-  React.useLayoutEffect(() => { updateScrollState(); }, [ordered.length, updateScrollState]);
-  React.useEffect(() => {
-    window.addEventListener("resize", updateScrollState);
-    return () => window.removeEventListener("resize", updateScrollState);
-  }, [updateScrollState]);
-  const scrolls = canScrollLeft || canScrollRight;
-
-  // No explicit `behavior` here on purpose: `.noscroll`'s scroll-behavior in
-  // theme.js governs smooth-vs-instant, and already flips to instant under
-  // the OS reduced-motion setting - the one place this app makes that call.
-  function scrollTreeRow(dir) {
-    const el = treeRowRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
-  }
 
   // With exactly one grove, open it silently: no decision to make, so this
   // just resumes where they left off, matching the original single-grove
@@ -58,29 +28,7 @@ export default function Home({ g }) {
 
   return (
     <Shell>
-      <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        {(() => {
-          const label = activeGroveId ? (activeGroveName || "Grove") : groves.length > 0 ? "Choose a grove" : "New grove";
-          const hint = activeGroveId ? "Switch or add a grove" : groves.length > 0 ? "Choose or add a grove" : "Create your first grove";
-          const icon = activeGroveId || groves.length > 0 ? "chevronDown" : "plus";
-          return (
-            <button
-              onClick={() => { setSwitcherOpen(true); if (!activeGroveId && groves.length === 0) setShowNewGrove(true); }}
-              title={hint} aria-label={hint}
-              style={{ display: "flex", alignItems: "center", gap: 7, border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}
-            >
-              <div className="groveHeaderIcon" style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, flexShrink: 0, boxShadow: "0 4px 12px rgba(120,66,37,.24)" }}><Icon name="tree" size={17} color="#FCEFE4" /></div>
-              <span className="disp groveHeaderName" style={{ fontWeight: 600, letterSpacing: "-.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-              <span className="groveHeaderChevron" style={{ display: "inline-flex", flexShrink: 0 }}><Icon name={icon} size={15} color={C.stone} strokeWidth={2.4} /></span>
-            </button>
-          );
-        })()}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button onClick={() => setScreen("progress")} title="Progress" aria-label="Progress" className="groveHeaderPill" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="chart" size={15} color={C.primaryDeep} /> <span className="groveHeaderPillLabel">Progress</span></button>
-          <button onClick={() => setScreen("help")} title="Help" aria-label="Help" className="groveHeaderPill" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, borderRadius: 999, border: `1.5px solid ${C.line}`, background: C.card, color: C.primaryDeep, fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 2px 8px rgba(58,42,32,.07)" }}><Icon name="help" size={15} color={C.primaryDeep} /> <span className="groveHeaderPillLabel">Help</span></button>
-          <AccountMenu g={g} />
-        </div>
-      </div>
+      <GroveHeader g={g} setSwitcherOpen={setSwitcherOpen} />
 
       {preview && (
         <div style={{ margin: "14px 20px 0", background: C.soft, border: `1.5px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -101,63 +49,7 @@ export default function Home({ g }) {
         </div>
       )}
 
-      {/* grove scene */}
-      <div style={{ margin: "16px 20px 0", borderRadius: 22, overflow: "hidden", boxShadow: "0 18px 38px rgba(58,42,32,.18), 0 2px 6px rgba(58,42,32,.08)", border: `1px solid ${C.line}` }}>
-        <div style={{ position: "relative", minHeight: has ? 300 : 264, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-          <GroveBackdrop />
-          {has ? (
-            <div style={{ position: "relative", zIndex: 1 }}>
-            <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "28px 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-                {(() => { let plantedIndex = 0; return ordered.map((c) => {
-                  const justPlanted = justPlantedIds.includes(c.id);
-                  const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 };
-                  if (justPlanted) style.animationDelay = `${Math.min(plantedIndex++, 6) * 50}ms`;
-                  return (
-                    <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""} style={style} title={c.name}>
-                      <Tree days={c.days} mastery={c.mastery} width={68} />
-                      <span className="treeLabel" title={c.name}>{c.name}</span>
-                    </button>
-                  );
-                }); })()}
-              </div>
-              </div>
-            ) : (
-              <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "center", padding: "0 20px 16px" }}>
-                <Tree days={0} mastery={0} width={78} />
-              </div>
-            )}
-        </div>
-        <div style={{ background: C.card, borderTop: `1px solid ${C.line}`, padding: "11px 14px", textAlign: "center" }}>
-          {has ? (
-            <div style={{ display: "flex", alignItems: "center" }}>
-              {/* Reserved-width slots at the outer edges keep the text centred
-                  whether zero, one, or two arrows are showing. Which arrow
-                  shows follows the real scroll position: only right at the
-                  start, only left at the end, both in between, none if
-                  everything already fits. */}
-              <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden", cursor: canScrollLeft ? "pointer" : "default" }}>
-                <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
-              </button>
-              <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions &middot; Greener = you know it better</div>
-              <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden", cursor: canScrollRight ? "pointer" : "default" }}>
-                <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="disp" style={{ fontSize: 18, fontWeight: 600, color: C.ink }}>A quiet, empty grove</div>
-              <div style={{ fontSize: 13, color: C.sub, fontWeight: 700, marginTop: 4, lineHeight: 1.5, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
-            </>
-          )}
-        </div>
-        {has && (
-          <div style={{ background: C.card, display: "flex", justifyContent: "space-around", padding: "13px 8px", fontSize: 12.5 }}>
-            <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18 }}>{concepts.length}</div><div style={{ color: C.sub, fontWeight: 700 }}>Planted</div></div>
-            <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18, color: C.sageDeep }}>{flourishing}</div><div style={{ color: C.sub, fontWeight: 700 }}>Flourishing</div></div>
-            <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18, color: C.coral }}>{thirsty}</div><div style={{ color: C.sub, fontWeight: 700 }}>Needs work</div></div>
-          </div>
-        )}
-      </div>
+      <GroveScene g={g} />
 
       <div style={{ padding: "18px 20px 40px" }}>
         {error && <div style={{ marginBottom: 14, background: "#F5E0D2", color: "#9A4A28", padding: "12px 14px", borderRadius: 14, fontSize: 14, fontWeight: 600 }}>{error}</div>}
@@ -170,35 +62,7 @@ export default function Home({ g }) {
 
         {!preview && (
           <>
-            {/* Two equal ways in. Typing suits "I want to understand X"; a photo
-                suits "here is my worksheet". Neither is the fallback. */}
-            <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 14, boxShadow: "0 10px 26px rgba(58,42,32,.10)" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 9 }}>{has ? "Study something else" : "What do you want to study?"}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  value={topicText}
-                  onChange={(e) => setTopicText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleStudy(); }}
-                  placeholder="A topic, or paste a URL"
-                  style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }}
-                />
-                <button onClick={() => handleStudy()} disabled={!topicText.trim()} aria-label="Study this" style={{ border: "none", cursor: topicText.trim() ? "pointer" : "default", width: 50, flexShrink: 0, borderRadius: 14, background: topicText.trim() ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", display: "grid", placeItems: "center" }}><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "13px 2px 12px" }}>
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-                <div style={{ fontSize: 11, fontWeight: 800, color: C.stone, letterSpacing: ".06em" }}>OR</div>
-                <div style={{ flex: 1, height: 1, background: C.line }} />
-              </div>
-
-              <button onClick={() => fileRef.current && fileRef.current.click()} style={{ width: "100%", border: `1.5px solid ${C.line}`, cursor: "pointer", textAlign: "left", padding: "13px 14px", borderRadius: 14, background: C.bg, color: C.ink, display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ display: "grid", placeItems: "center", width: 34, height: 34, borderRadius: 10, background: C.soft, flexShrink: 0 }}><Icon name="file" size={18} color={C.primaryDeep} /></span>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 800 }}>Share your work</span>
-                  <span style={{ display: "block", fontSize: 12.5, color: C.sub, fontWeight: 700, marginTop: 1 }}>Photos, PDFs, Word docs, or text files</span>
-                </span>
-              </button>
-            </div>
+            <StudyInput g={g} has={has} />
 
             {!has && !hideSample && g.settings.sample_grove && (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
@@ -222,46 +86,7 @@ export default function Home({ g }) {
         )}
       </div>
 
-      {selected && (() => {
-        const c = concepts.find((x) => x.id === selected);
-        if (!c) return null;
-        return (
-          <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(45,28,16,.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 20 }}>
-            <div onClick={(e) => e.stopPropagation()} className="fadeUp" style={{ width: "100%", maxWidth: 420, maxHeight: "88vh", overflowY: "auto", background: C.card, borderRadius: 20, padding: "20px 22px 24px", boxShadow: "0 24px 56px rgba(40,24,12,.32)" }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
-                <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "transparent", color: C.sub, cursor: "pointer", padding: 4, fontSize: 18, lineHeight: 1 }}>&times;</button>
-              </div>
-              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <div style={{ background: C.bg, borderRadius: 16, padding: 4 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>
-                <div style={{ flex: 1 }}>
-                  <div className="disp" style={{ fontSize: 21, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ color: C.sub, fontSize: 13.5, fontWeight: 700 }}>{growthLabel(c.days, c.mastery, g.settings.mastery_threshold)}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                <div style={{ flex: 1, background: C.bg, borderRadius: 14, padding: "12px 14px" }}>
-                  <div className="disp" style={{ fontSize: 17, fontWeight: 700, color: canopyColor(c.mastery).dark, textTransform: "capitalize" }}>{statusOf(c.mastery)}</div>
-                  <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>how well you know it</div>
-                </div>
-                <div style={{ flex: 1, background: C.bg, borderRadius: 14, padding: "12px 14px" }}>
-                  <div className="disp" style={{ fontSize: 17, fontWeight: 700 }}>{Math.min(5, c.days)} of 5</div>
-                  <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>sessions to full size</div>
-                </div>
-              </div>
-              <div style={{ marginTop: 14, display: "flex", gap: 5 }}>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <div key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < Math.min(5, c.days) ? C.sageDeep : C.line }} />
-                ))}
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: C.sub, fontWeight: 700, textAlign: "center" }}>{nextStage(c)}</div>
-              <button onClick={() => { setSelected(null); startSession([c.id], concepts); }} style={{ marginTop: 10, width: "100%", border: "none", cursor: "pointer", padding: 15, borderRadius: 15, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 15 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" }}><Icon name="drop" size={17} color="#FCEFE4" /> Tend this tree</span>
-              </button>
-              <button onClick={() => removeTree(c.id)} style={{ marginTop: 8, width: "100%", border: "none", background: "transparent", cursor: "pointer", color: C.sub, fontWeight: 700, fontSize: 13 }}>Remove this tree</button>
-            </div>
-          </div>
-        );
-      })()}
+      {selected && <TreeCard g={g} />}
 
       {switcherOpen && <GroveSwitcher g={g} onClose={() => setSwitcherOpen(false)} />}
       {authCard && <AuthCard g={g} />}
