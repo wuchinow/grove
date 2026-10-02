@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import { statusOf, growthLabel, canopyColor } from "../lib/ai";
+import { growthLabel } from "../lib/ai";
 import Tree from "../components/Tree";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
@@ -233,9 +233,9 @@ export default function Tutor({ g }) {
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ background: C.bg, borderRadius: 12, padding: 2 }}><Tree days={active ? active.days : 0} mastery={active ? active.mastery : 0} width={44} /></div>
             <div style={{ flex: 1 }}>
-              <div className="disp" style={{ fontSize: 18, fontWeight: 600 }}>{active ? active.name : ""}</div>
+              <div className="disp" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2 }}>{active ? active.name : ""}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginTop: 2 }}>
-                {active ? `${growthLabel(active.days)} · ${statusOf(active.mastery)}` : ""}
+                {active ? growthLabel(active.days) : ""}
               </div>
             </div>
           </div>

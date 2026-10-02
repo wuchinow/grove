@@ -3,6 +3,7 @@
 import React from "react";
 import { C } from "../lib/theme";
 import { statusOf, growthLabel, canopyColor } from "../lib/ai";
+import { stageOf, STAGE_MAX, STAGE_NAMES } from "../lib/growth";
 import Tree from "../components/Tree";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
@@ -11,7 +12,9 @@ export default function Progress({ g }) {
   const { concepts, profile, setScreen, startSession, studyEverything } = g;
     const total = concepts.length;
     const sessions = concepts.reduce((n, c) => n + (c.days || 0), 0);
-    const flourishing = concepts.filter((c) => c.mastery >= 85).length;
+    // Trees at the top stage, named by growth.js so the label follows the stage list.
+    const topStage = STAGE_NAMES[STAGE_MAX];
+    const fullGrown = concepts.filter((c) => stageOf(c.days) === STAGE_MAX).length;
     const solid = concepts.filter((c) => c.mastery >= 75).length;
     const needs = [...concepts].filter((c) => c.mastery < 40).sort((a, b) => a.mastery - b.mastery);
     const strong = [...concepts].filter((c) => c.mastery >= 60).sort((a, b) => b.mastery - a.mastery).slice(0, 3);
@@ -28,7 +31,7 @@ export default function Progress({ g }) {
       if (!total) return "Add a photo of what you're studying and Grove will pull out the key ideas.";
       if (sessions === 0) return `You've planted ${total} ${total === 1 ? "concept" : "concepts"}. Tend one to get going.`;
       const parts = [`You've finished ${sessions} ${sessions === 1 ? "session" : "sessions"} across ${total} ${total === 1 ? "concept" : "concepts"}.`];
-      if (flourishing) parts.push(`${flourishing} ${flourishing === 1 ? "is" : "are"} flourishing.`);
+      if (fullGrown) parts.push(`${fullGrown} ${fullGrown === 1 ? "is" : "are"} ${topStage.toLowerCase()}.`);
       if (needs.length) parts.push(`${needs.length} could use another pass, and that's where a few minutes goes furthest.`);
       else if (solid === total) parts.push("Nothing is lagging behind right now.");
       return parts.join(" ");
@@ -61,7 +64,7 @@ export default function Progress({ g }) {
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <Stat n={total} label="Concepts" />
             <Stat n={sessions} label="Sessions" />
-            <Stat n={flourishing} label="Flourishing" color={C.sageDeep} />
+            <Stat n={fullGrown} label={topStage} color={C.sageDeep} />
             <Stat n={needs.length} label="Need work" color={C.coral} />
           </div>
 

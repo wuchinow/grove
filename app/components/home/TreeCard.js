@@ -1,20 +1,20 @@
 "use client";
 
 import { C } from "../../lib/theme";
-import { statusOf, growthLabel, canopyColor } from "../../lib/ai";
+import { growthLabel } from "../../lib/ai";
 import { stageOf, STAGE_MAX } from "../../lib/growth";
 import Tree from "../Tree";
 import Icon from "../Icon";
 import ModalCard, { Eyebrow } from "../ui/ModalCard";
 import PillButton from "../ui/PillButton";
 
-// The card that opens when a tree is tapped: its growth, how well it's known,
-// and the way into a session on it. Home renders it only while a tree is selected.
+// The card that opens when a tree is tapped: its growth and the way into a
+// session on it. How well the concept is known is on Progress, not here. Home
+// renders it only while a tree is selected.
 export default function TreeCard({ g }) {
   const { concepts, nextStage, removeTree, selected, setSelected, startSession } = g;
   const c = concepts.find((x) => x.id === selected);
   if (!c) return null;
-  const tile = { flex: 1, minWidth: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "12px 14px" };
   return (
     <ModalCard onClose={() => setSelected(null)} maxWidth={420} zIndex={20}>
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -24,17 +24,11 @@ export default function TreeCard({ g }) {
           <div className="disp" style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.2, marginTop: 5, overflowWrap: "anywhere" }}>{c.name}</div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <div style={tile}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: canopyColor(c.mastery).dark, textTransform: "capitalize" }}>{statusOf(c.mastery)}</div>
-          <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>how well you know it</div>
-        </div>
-        <div style={tile}>
-          <div style={{ fontSize: 17, fontWeight: 600 }}>{stageOf(c.days)} of {STAGE_MAX}</div>
-          <div style={{ fontSize: 12, color: C.sub, marginTop: 1 }}>sessions to full size</div>
-        </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 20 }}>
+        <div style={{ fontSize: 17, fontWeight: 600 }}>{stageOf(c.days)} of {STAGE_MAX}</div>
+        <div style={{ fontSize: 13, color: C.sub }}>sessions to full size</div>
       </div>
-      <div style={{ marginTop: 16, display: "flex", gap: 5 }}>
+      <div style={{ marginTop: 9, display: "flex", gap: 5 }}>
         {Array.from({ length: STAGE_MAX }, (_, i) => (
           <div key={i} style={{ flex: 1, height: 4, borderRadius: 999, background: i < stageOf(c.days) ? C.primary : C.line }} />
         ))}

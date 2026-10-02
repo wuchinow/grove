@@ -7,7 +7,7 @@ import Icon from "../Icon";
 import GroveBackdrop from "../GroveBackdrop";
 
 // The grove scene: the backdrop, the scrolling row of trees with their floating
-// labels, the legend (or the empty-grove copy), and the stats strip under it.
+// labels, and under it the legend with the tree count (or the empty-grove copy).
 //
 // The stage's height is the .groveStage rule in ui.css, an explicit height
 // rather than an aspect-ratio. Each label sits in a fixed-height slot, so every
@@ -44,7 +44,7 @@ export default function GroveScene({ g }) {
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
   }
 
-  const arrow = (on) => ({ width: 28, height: 28, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", visibility: on ? "visible" : "hidden", cursor: on ? "pointer" : "default" });
+  const arrow = (on) => ({ width: 24, height: 28, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", visibility: on ? "visible" : "hidden", cursor: on ? "pointer" : "default" });
 
   return (
     <div style={{ margin: "14px 16px 0", borderRadius: 22, overflow: "hidden", border: `1px solid ${C.line}`, background: C.bg, boxShadow: "0 14px 34px rgba(31,56,36,.10)" }}>
@@ -85,7 +85,7 @@ export default function GroveScene({ g }) {
             <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ ...arrow(canScrollLeft), justifyContent: "flex-start" }}>
               <Icon name="chevronLeft" size={16} color={C.primary} strokeWidth={2.4} />
             </button>
-            <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: C.sub }}>Taller = more sessions</div>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: C.sub, whiteSpace: "nowrap" }}>{concepts.length} planted &middot; Taller = more sessions</div>
             <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ ...arrow(canScrollRight), justifyContent: "flex-end" }}>
               <Icon name="chevronRight" size={16} color={C.primary} strokeWidth={2.4} />
             </button>
@@ -97,11 +97,6 @@ export default function GroveScene({ g }) {
           </>
         )}
       </div>
-      {has && (
-        <div style={{ borderTop: `1px solid ${C.line}`, display: "flex", justifyContent: "space-around", padding: "10px 8px 11px", fontSize: 12 }}>
-          <div style={{ textAlign: "center" }}><div style={{ fontWeight: 600, fontSize: 18, lineHeight: 1.2 }}>{concepts.length}</div><div style={{ color: C.sub }}>Planted</div></div>
-        </div>
-      )}
     </div>
   );
 }
