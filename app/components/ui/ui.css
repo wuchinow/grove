@@ -46,6 +46,16 @@
 .groveStage.isEmpty {
   height: 240px;
 }
+/* A tree's column is as wide as its longest word needs (labels wrap only at
+   spaces and hyphens, never inside a word), never narrower than 88px, and
+   capped at 200px so a pasted URL can't make one giant column; a word past
+   the cap is clipped, not split. min-content is the widest unbreakable run
+   among the column's children: the tree drawing or the label's longest word. */
+.treeColumn {
+  width: min-content;
+  min-width: 88px;
+  max-width: 200px;
+}
 .treeLabelSlot {
   display: block;
   width: 100%;

@@ -4,12 +4,22 @@ import React from "react";
 import { C } from "../lib/theme";
 import { Shell } from "../components/Shell";
 import Icon from "../components/Icon";
+import PillButton from "../components/ui/PillButton";
 import { soundEnabled, playSnakeEat, playSnakeOver } from "../lib/sound";
 
 const GRID = 16;
 const START_TICK_MS = 200;
 const MIN_TICK_MS = 120;
 const SPEEDUP_MS = 4;
+
+// The board in the app's palette. Snake and food differ in hue, lightness and
+// shape (rounded squares against a circle), so they stay distinguishable
+// without relying on colour alone.
+const BOARD = "#eef2e4";
+const SNAKE_HEAD = C.ink;
+const SNAKE_BODY = C.primary;
+const FOOD = C.coral;
+const SCRIM = "rgba(20,46,39,.6)";
 
 function randCell(exclude) {
   let cell;
@@ -116,15 +126,15 @@ export default function Play({ g }) {
 
     function draw() {
       ctx.clearRect(0, 0, size, size);
-      ctx.fillStyle = C.card;
+      ctx.fillStyle = BOARD;
       ctx.fillRect(0, 0, size, size);
       const f = foodRef.current;
-      ctx.fillStyle = C.amber;
+      ctx.fillStyle = FOOD;
       ctx.beginPath();
       ctx.arc((f.x + 0.5) * cell, (f.y + 0.5) * cell, cell * 0.32, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = C.sageDeep;
       snakeRef.current.forEach((s, i) => {
+        ctx.fillStyle = i === 0 ? SNAKE_HEAD : SNAKE_BODY;
         const r = i === 0 ? 6 : 4;
         const px = s.x * cell + 1, py = s.y * cell + 1, w = cell - 2;
         ctx.beginPath();
@@ -176,9 +186,10 @@ export default function Play({ g }) {
     <button
       onClick={() => turn(dx, dy)}
       aria-label={`Move ${dir}`}
-      style={{ gridArea: dir, border: "none", background: C.card, borderRadius: 12, boxShadow: "0 2px 8px rgba(58,42,32,.08)", display: "grid", placeItems: "center", width: 52, height: 52, cursor: "pointer" }}
+      className="uiPill"
+      style={{ gridArea: dir, border: `1px solid ${C.line}`, background: C.card, borderRadius: 999, boxShadow: "0 3px 10px rgba(31,56,36,.06)", display: "grid", placeItems: "center", width: 52, height: 52, padding: 0 }}
     >
-      <Icon name={name} size={20} color={C.primaryDeep} />
+      <Icon name={name} size={20} color={C.primary} />
     </button>
   );
 
@@ -187,42 +198,42 @@ export default function Play({ g }) {
       <div style={{ padding: "20px 20px 30px", flex: 1, display: "flex", flexDirection: "column", overscrollBehavior: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={() => setScreen("home")} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>&larr; My grove</button>
+            <PillButton variant="quiet" size="sm" onClick={() => setScreen("home")}>&larr; My grove</PillButton>
             {phase === "playing" && (
-              <button onClick={handlePause} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>Pause</button>
+              <PillButton variant="outline" size="sm" onClick={handlePause}>Pause</PillButton>
             )}
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>Score {score}</div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: C.sub }}>Best {Math.max(best, score)}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>Score {score}</div>
+            <div style={{ fontSize: 12, color: C.sub }}>Best {Math.max(best, score)}</div>
           </div>
         </div>
 
-        <div className="disp" style={{ fontSize: 22, fontWeight: 600, marginTop: 14 }}>Take a break</div>
+        <div className="disp" style={{ fontSize: 28, fontWeight: 500, marginTop: 16 }}>Take a break</div>
 
         <div ref={wrapRef} style={{ marginTop: 16, width: "100%", maxWidth: 360, marginLeft: "auto", marginRight: "auto", position: "relative" }}>
-          <canvas ref={canvasRef} width={size} height={size} style={{ width: size, height: size, borderRadius: 18, boxShadow: "0 8px 24px rgba(58,42,32,.12)", touchAction: "none" }} />
+          <canvas ref={canvasRef} width={size} height={size} style={{ width: size, height: size, borderRadius: 18, border: `1px solid ${C.line}`, boxSizing: "border-box", boxShadow: "0 10px 26px rgba(31,56,36,.10)", touchAction: "none", display: "block" }} />
           {phase === "start" && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-              <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Take a break</div>
-              <div style={{ color: "#FCEFE4", fontSize: 13, fontWeight: 700 }}>Best {best}</div>
-              <button onClick={handlePlay} style={{ marginTop: 6, border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Play</button>
+            <div style={{ position: "absolute", inset: 0, background: SCRIM, borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div className="disp" style={{ color: "#fff", fontSize: 24, fontWeight: 500 }}>Take a break</div>
+              <div style={{ color: "#e4ead9", fontSize: 13.5 }}>Best {best}</div>
+              <PillButton variant="quiet" onClick={handlePlay} style={{ marginTop: 6, background: "#fff" }}>Play</PillButton>
             </div>
           )}
           {phase === "paused" && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-              <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Paused</div>
+            <div style={{ position: "absolute", inset: 0, background: SCRIM, borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div className="disp" style={{ color: "#fff", fontSize: 24, fontWeight: 500 }}>Paused</div>
               <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                <button onClick={handleResume} style={{ border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Resume</button>
-                <button onClick={handleRestart} style={{ border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: C.soft, color: C.primaryDeep, fontWeight: 800, fontSize: 14 }}>Restart</button>
+                <PillButton variant="quiet" onClick={handleResume} style={{ background: "#fff" }}>Resume</PillButton>
+                <PillButton variant="outline" onClick={handleRestart} style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,.5)" }}>Restart</PillButton>
               </div>
             </div>
           )}
           {gameOver && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(45,28,16,.5)", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-              <div className="disp" style={{ color: "#FCEFE4", fontSize: 20, fontWeight: 600 }}>Game over</div>
-              <div style={{ color: "#FCEFE4", fontSize: 13, fontWeight: 700 }}>Score {score} · Best {Math.max(best, score)}</div>
-              <button onClick={handleRestart} style={{ marginTop: 6, border: "none", cursor: "pointer", padding: "10px 20px", borderRadius: 14, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 14 }}>Play again</button>
+            <div style={{ position: "absolute", inset: 0, background: SCRIM, borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div className="disp" style={{ color: "#fff", fontSize: 24, fontWeight: 500 }}>Game over</div>
+              <div style={{ color: "#e4ead9", fontSize: 13.5 }}>Score {score} · Best {Math.max(best, score)}</div>
+              <PillButton variant="quiet" onClick={handleRestart} style={{ marginTop: 6, background: "#fff" }}>Play again</PillButton>
             </div>
           )}
         </div>

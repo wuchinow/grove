@@ -72,10 +72,11 @@ export default function Home({ g }) {
           </>
         )}
 
-        <p style={{ textAlign: "center", color: C.sub, fontSize: 12, marginTop: 18, marginBottom: 0 }}>
-          {preview ? "Sample grove · nothing is being saved" : student ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={footLink}>sign in</button> to keep your grove</>)}
-          {has && !preview && <>{" · "}<button onClick={clearGrove} style={footLink}>Clear grove</button></>}
-        </p>
+        {/* No footer in the sample grove: the banner above already says nothing is saved. */}
+        {!preview && <p style={{ textAlign: "center", color: C.sub, fontSize: 12, marginTop: 18, marginBottom: 0 }}>
+          {student ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={footLink}>sign in</button> to keep your grove</>)}
+          {has && <>{" · "}<button onClick={clearGrove} style={footLink}>Clear grove</button></>}
+        </p>}
         {auth.status === "legacy" && (
           <p style={{ textAlign: "center", color: C.sub, fontSize: 12, marginTop: 6, marginBottom: 0, lineHeight: 1.5 }}>
             You're using a beta link. <button onClick={() => setAuthCard("signup")} style={footLink}>Create an account</button> with the username <b>{student}</b> to keep these trees.

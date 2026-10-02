@@ -22,7 +22,7 @@ export default function AccountMenu({ g }) {
 
   if (!signedIn && auth.status !== "legacy") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div className="groveHeaderGuest" style={{ display: "flex", alignItems: "center" }}>
         <PillButton
           variant="outline" size="sm"
           onClick={() => { const next = !guestSoundOn; setGuestSoundOn(next); setSoundEnabled(null, null, null, next); }}
@@ -32,8 +32,11 @@ export default function AccountMenu({ g }) {
         >
           <Icon name="sound" size={16} color={guestSoundOn ? C.primary : C.stone} />
         </PillButton>
-        <PillButton variant="outline" size="sm" onClick={() => setAuthCard("welcome")} title="Sign in" aria-label="Sign in">
-          Sign in
+        {/* Below 360px this collapses to a person icon so the grove name keeps
+            its room; the label and icon swap by class (theme.js). */}
+        <PillButton variant="outline" size={null} onClick={() => setAuthCard("welcome")} title="Sign in" aria-label="Sign in" className="groveHeaderSignIn" style={{ height: 36, fontSize: 13, flexShrink: 0 }}>
+          <span className="groveHeaderSignInIcon"><Icon name="user" size={16} color={C.primary} /></span>
+          <span className="groveHeaderSignInLabel">Sign in</span>
         </PillButton>
       </div>
     );

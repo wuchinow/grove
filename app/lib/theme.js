@@ -49,9 +49,8 @@ export const FONTS = `
 }
 .treeLabel{
   color:#234332; font-size:11.5px; font-weight:500; line-height:1.25;
-  text-align:center; overflow:hidden; overflow-wrap:anywhere;
-  -webkit-hyphens:auto; hyphens:auto;
-  -webkit-hyphenate-limit-before:6; -webkit-hyphenate-limit-after:5; hyphenate-limit-chars:13 6 5;
+  text-align:center; overflow:hidden;
+  overflow-wrap:normal; word-break:normal; -webkit-hyphens:manual; hyphens:manual;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
 }
 @media (max-width:420px){ .treeLabel{ font-size:11px } .treeLabelCard{ padding:5px 4px } }
@@ -59,6 +58,12 @@ export const FONTS = `
   .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
   .noscroll{scroll-behavior:auto}
 }
+.groveHeader{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 16px 0}
+.groveHeaderButton{gap:8px}
+.groveHeaderActions{gap:8px}
+.groveHeaderGuest{gap:6px}
+.groveHeaderSignIn{padding:0 13px}
+.groveHeaderSignInIcon{display:none}
 .groveHeaderIcon{display:grid;place-items:center}
 .groveHeaderName{font-family:${FONT_DISPLAY};font-size:20px;font-weight:500;letter-spacing:-.02em;flex:1 1 auto;min-width:44px}
 .groveHeaderChevron{display:inline-flex;flex-shrink:0}
@@ -71,6 +76,13 @@ export const FONTS = `
   .groveHeaderChevron.isPlus{display:none}
 }
 @media (max-width:360px){
+  .groveHeader{gap:8px;padding:16px 12px 0}
+  .groveHeaderButton{gap:6px}
+  .groveHeaderActions{gap:6px}
+  .groveHeaderGuest{gap:6px}
+  .groveHeaderSignIn{padding:0;width:36px}
+  .groveHeaderSignInLabel{display:none}
+  .groveHeaderSignInIcon{display:inline-flex}
   .groveHeaderName{font-family:${FONT_BODY};font-size:17px;font-weight:600;letter-spacing:-.01em}
   .groveHeaderChevron{display:none}
 }

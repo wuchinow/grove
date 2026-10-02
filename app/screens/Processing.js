@@ -3,12 +3,15 @@
 import React from "react";
 import { C } from "../lib/theme";
 import Tree from "../components/Tree";
-import { Shell, Logo } from "../components/Shell";
+import { Shell } from "../components/Shell";
 
 // A long document's local extraction and section-grouping steps can take a
 // few seconds longer than a single model call, so this names the stage
-// rather than sitting on the same caption the whole time - the same swaying
-// Tree throughout, never a spinner.
+// rather than sitting on the same caption the whole time. The tree stands
+// still and the busy dots are the only thing that moves: they're the one
+// looping animation the app allows (UX rule 8), and the reduced-motion rule
+// stops them too. (The tree used to sway on an inline loop that rule never
+// reached.)
 function caption(sourceMode, processingStage) {
   if (sourceMode === "topic") return { title: "Thinking it through…", sub: "Finding concepts to plant" };
   if (sourceMode === "photo") return { title: "Reading your work…", sub: "Finding concepts to plant" };
@@ -24,9 +27,16 @@ export default function Processing({ g }) {
     <Shell>
       <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 30 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ animation: "sway 2.4s ease-in-out infinite", transformOrigin: "50% 100%" }}><Tree days={3} mastery={60} width={96} /></div>
-          <div className="disp" style={{ fontSize: 20, fontWeight: 600, marginTop: 12 }}>{title}</div>
-          <div style={{ color: C.sub, marginTop: 6, fontSize: 14, fontWeight: 700 }}>{sub}</div>
+          <div style={{ display: "inline-block", background: C.soft, borderRadius: 999, padding: "14px 16px 6px" }}><Tree days={3} mastery={60} width={84} /></div>
+          <div className="disp" style={{ fontSize: 24, fontWeight: 500, marginTop: 16 }}>{title}</div>
+          <div style={{ color: C.sub, marginTop: 6, fontSize: 14.5, display: "inline-flex", alignItems: "baseline", gap: 7 }}>
+            <span>{sub}</span>
+            <span style={{ display: "inline-flex", gap: 3 }} aria-hidden="true">
+              <span className="dotPulse" style={{ animationDelay: "0s" }} />
+              <span className="dotPulse" style={{ animationDelay: "0.15s" }} />
+              <span className="dotPulse" style={{ animationDelay: "0.3s" }} />
+            </span>
+          </div>
         </div>
       </div>
     </Shell>

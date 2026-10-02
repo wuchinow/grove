@@ -55,10 +55,10 @@ export default function GroveScene({ g }) {
             <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "24px 8px 10px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
               {(() => { let plantedIndex = 0; return ordered.map((c) => {
                 const justPlanted = justPlantedIds.includes(c.id);
-                const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 3px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 88 };
+                const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 3px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto" };
                 if (justPlanted) style.animationDelay = `${Math.min(plantedIndex++, 6) * 50}ms`;
                 return (
-                  <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""} style={style} title={c.name}>
+                  <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "treeColumn planted" : grewIds.includes(c.id) ? "treeColumn grew" : "treeColumn"} style={style} title={c.name}>
                     <Tree days={c.days} mastery={c.mastery} width={76} />
                     <span className="treeLabelSlot">
                       <span className="treeLabelCard"><span className="treeLabel" title={c.name}>{c.name}</span></span>
