@@ -20,6 +20,13 @@ Usage:
 Screenshots are written to --out-dir for manual review against
 UX-RULES.md; this script asserts only the one thing Chromium actually can
 (input font-size >= 16px) and otherwise leaves judgment to the screenshots.
+
+run_grove_ops is the exception: no screenshots, all assertions. It is the
+regression test for the grove-wipe bug class (Sep 8, Sep 11) - in Chromium
+and WebKit it checks that no request to /api/grove naming an existing grove
+ever carries a concepts array, through a slow load, a failed load, a
+finished session, a failed save and its retry, and a page hide - and that
+a guest's grove, which lives only in the tab, never reaches the server.
 """
 import argparse
 import json
@@ -118,11 +125,96 @@ def mock_admin_routes(page):
 
 
 
-def mock_signed_in(page, groves=None):
+# With or without a query string: the glob "**/api/grove" compiles to a regex
+# anchored at the end of the path, so it never matched the load
+# (GET /api/grove?id=...&student=...) and that request fell through to the
+# real route.
+GROVE_URL = re.compile(r".*/api/grove(\?.*)?$")
+
+
+def json_reply(route, body, status=200):
+    route.fulfill(status=status, content_type="application/json", body=json.dumps(body))
+
+
+class GroveMock:
+    """A method-aware stand-in for /api/grove holding one grove in memory.
+    GET returns it; a write without an id creates it; a write with ops
+    applies them. Every write body is recorded in `writes`. A GET or a write
+    can be held unanswered (the deterministic stand-in for a slow network)
+    and released later, and writes can be made to fail first."""
+
+    def __init__(self, concepts=None, name="Biology"):
+        self.concepts = [dict(c) for c in (concepts or [])]
+        self.name = name
+        self.writes = []          # (method, parsed body) for every non-GET, in arrival order
+        self.get_status = 200
+        self.hold_get = False
+        self.held_get = None
+        self.hold_write = False
+        self.held_write = None
+        self.fail_writes = 0      # answer this many writes with a 500 before behaving
+
+    def handle(self, route, request):
+        if request.method == "GET":
+            if self.hold_get:
+                self.held_get = route
+                return
+            self.answer_get(route)
+            return
+        if request.method == "DELETE":
+            json_reply(route, {"ok": True})
+            return
+        try:
+            body = json.loads(request.post_data or "{}")
+        except ValueError:
+            body = {}
+        self.writes.append((request.method, body))
+        if self.fail_writes > 0:
+            self.fail_writes -= 1
+            json_reply(route, {"error": "Database write failed."}, status=502)
+            return
+        if self.hold_write and self.held_write is None:
+            self.held_write = (route, body)
+            return
+        self.answer_write(route, body)
+
+    def answer_get(self, route):
+        if self.get_status != 200:
+            json_reply(route, {"error": "Database read failed."}, status=self.get_status)
+            return
+        json_reply(route, {"id": "g1", "name": self.name, "concepts": self.concepts})
+
+    def answer_write(self, route, body):
+        if not body.get("id"):
+            self.concepts = [dict(c) for c in body.get("concepts") or []]
+            json_reply(route, {"ok": True, "id": "mock-grove-1"})
+            return
+        for op in body.get("ops") or []:
+            kind, cid = op.get("op"), op.get("concept")
+            if kind == "append":
+                self.concepts += [dict(c) for c in op.get("concepts") or []]
+            elif kind == "remove":
+                self.concepts = [c for c in self.concepts if c["id"] != cid]
+            elif kind == "clear":
+                self.concepts = []
+            elif kind == "rename":
+                self.name = op.get("name") or self.name
+            for c in self.concepts:
+                if c["id"] != cid:
+                    continue
+                if kind == "mastery":
+                    c["mastery"] = op.get("value")
+                elif kind == "session":
+                    c["days"], c["reviews"] = c.get("days", 0) + 1, c.get("reviews", 0) + 1
+        json_reply(route, {"ok": True, "id": body["id"], "name": self.name, "concepts": self.concepts})
+
+
+def mock_signed_in(page, groves=None, grove=None):
     """Simulates a signed-in student session (Stage 2's Play/AccountMenu
     checks need one; this sandbox has no real Supabase credentials). Mocks
     every network call the boot + a fresh-grove flow touches so nothing
-    left unmocked throws a console error mid-test."""
+    left unmocked throws a console error mid-test. Returns the GroveMock
+    answering /api/grove."""
     session_body = {
         "student": {"student_id": "midnight", "username": "midnight", "role": "student"},
         "profile": {"grade": "10", "snakeBest": 12},
@@ -130,10 +222,12 @@ def mock_signed_in(page, groves=None):
         "groves": groves or [],
         "settings": {"starting_trees": 7, "mastery_threshold": 1, "interest_analogies": True, "sample_grove": True},
     }
+    grove = grove or GroveMock()
     page.route("**/api/auth/session", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(session_body)))
-    page.route("**/api/grove", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"id": "mock-grove-1", "concepts": []})))
+    page.route(GROVE_URL, grove.handle)
     page.route("**/api/student", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"ok": True})))
     page.route("**/api/game", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps({"best": 12})))
+    return grove
 
 
 def run(base_url: str, out_dir: Path):
@@ -432,6 +526,239 @@ def run_header_long_name(base_url: str, out_dir: Path):
     print(f"Header/long-name screenshot written to {out_dir}")
 
 
+GROVE_TREES = [
+    {"id": "c1", "name": "Concept A", "note": "a short note on concept A", "attempt": "", "mastery": 0, "days": 0, "reviews": 0},
+    {"id": "c2", "name": "Concept B", "note": "a short note on concept B", "attempt": "", "mastery": 40, "days": 1, "reviews": 1},
+    {"id": "c3", "name": "Concept C", "note": "a short note on concept C", "attempt": "", "mastery": 70, "days": 2, "reviews": 2},
+]
+TUTOR_DONE = {"message": "Exactly right. That one is solid.", "phase": "done", "understanding": "solid", "options": [], "correctOption": ""}
+
+# sendBeacon can't be intercepted as a route in every engine, so record what
+# the page hands it instead of letting it leave.
+BEACON_SPY = """
+window.__beacons = [];
+navigator.sendBeacon = (url, data) => {
+  const keep = (text) => window.__beacons.push({ url: String(url), body: text });
+  if (data && typeof data.text === "function") data.text().then(keep); else keep(String(data));
+  return true;
+};
+"""
+HIDE = """() => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+SHOW = """() => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+  document.dispatchEvent(new Event("visibilitychange"));
+}"""
+
+
+def session_tutor_mock():
+    """A question, then (once answered) a finished session, alternating - so
+    tending a tree and picking the right option completes it in one answer."""
+    calls = {"n": 0}
+
+    def handler(route, request):
+        try:
+            payload = json.loads(request.post_data or "{}")
+        except ValueError:
+            payload = {}
+        if payload.get("kind") in ("tutor", "tutor-retry"):
+            calls["n"] += 1
+            reply = TUTOR_REPLY if calls["n"] % 2 == 1 else TUTOR_DONE
+        else:
+            reply = EXTRACT_REPLY
+        route.fulfill(status=200, content_type="application/json", body=anthropic_body(reply))
+
+    return handler
+
+
+def beacons(page):
+    page.wait_for_timeout(150)  # the spy reads each Blob asynchronously
+    return [json.loads(b["body"]) for b in page.evaluate("() => window.__beacons")]
+
+
+def wait_until(page, condition, what, timeout_ms=10000):
+    waited = 0
+    while not condition():
+        assert waited < timeout_ms, f"timed out waiting for {what}"
+        page.wait_for_timeout(100)
+        waited += 100
+
+
+def assert_ops_only(label, grove, page):
+    """The invariant this refactor exists for: a request that names an
+    existing grove carries operations, never a concepts array. (Creating a
+    grove has no id and is the one write that sends concepts.)"""
+    for kind, body in grove.writes + [("BEACON", b) for b in beacons(page)]:
+        if "id" not in body:
+            continue
+        assert "concepts" not in body, f"[{label}] {kind} for grove {body['id']} carries a concepts array: {body}"
+        extra = set(body) - {"student", "id", "ops"}
+        assert not extra, f"[{label}] {kind} for grove {body['id']} has unexpected keys {sorted(extra)}: {body}"
+
+
+def tend_and_finish(page, tree_name):
+    """Home -> tap a tree -> Tend this tree -> pick the right option -> the
+    session completes (mastery moves and the session counts)."""
+    page.locator(f"button[title='{tree_name}']").click()
+    page.get_by_text("Tend this tree").click()
+    page.wait_for_selector("text=What is 2 + 2", timeout=10000)
+    page.get_by_role("button", name="4", exact=True).click()
+    page.wait_for_selector("text=Exactly right", timeout=10000)
+
+
+def remove_tree(page, tree_name):
+    page.locator(f"button[title='{tree_name}']").click()
+    page.get_by_text("Remove this tree").click()  # the confirm() is auto-accepted
+    page.wait_for_timeout(200)
+
+
+def grove_ops_page(browser, grove, groves):
+    page = browser.new_page(viewport={"width": 375, "height": HEIGHT})
+    page.emulate_media(reduced_motion="reduce")
+    page.add_init_script(BEACON_SPY)
+    page.on("dialog", lambda d: d.accept())
+    mock_signed_in(page, groves=groves, grove=grove)
+    page.route("**/api/anthropic", session_tutor_mock())
+    return page
+
+
+def run_grove_ops(base_url: str):
+    """Regression test for the grove-wipe bug class. Sep 8 and Sep 11 were
+    both a whole concepts array written back over a grove by a client that
+    didn't really have it (a failed load, then a load still in flight). The
+    client now sends operations instead, so the thing to hold is simple and
+    absolute: no request naming an existing grove ever carries `concepts`.
+
+    A slow network is a held route, not CDP throttling: it's deterministic,
+    and it works in WebKit, where throttling doesn't exist."""
+    one_grove = [{"id": "g1", "name": "Biology", "treeCount": 3, "flourishing": 0}]
+    two_groves = one_grove + [{"id": "g2", "name": "History", "treeCount": 2, "flourishing": 0}]
+    with sync_playwright() as p:
+        for engine, launcher in [("chromium", p.chromium), ("webkit", p.webkit)]:
+            browser = launcher.launch()
+
+            # -- Slow load: the single grove auto-opens and its GET hangs.
+            grove = GroveMock(GROVE_TREES)
+            grove.hold_get = True
+            page = grove_ops_page(browser, grove, one_grove)
+            page.goto(base_url, wait_until="load")  # not networkidle: the held GET never goes idle
+            wait_until(page, lambda: grove.held_get is not None, f"[{engine}] the grove load to start")
+            page.wait_for_timeout(2500)  # well past the old 800ms autosave
+            page.evaluate(HIDE)
+            page.evaluate(SHOW)
+            assert grove.writes == [], f"[{engine}] wrote during a grove load: {grove.writes}"
+            assert beacons(page) == [], f"[{engine}] sent a beacon during a grove load: {beacons(page)}"
+            grove.hold_get = False
+            grove.answer_get(grove.held_get)
+            page.wait_for_selector("button[title='Concept A']", timeout=10000)
+            page.wait_for_timeout(1500)
+            assert grove.writes == [], f"[{engine}] opening a grove wrote something back: {grove.writes}"
+
+            # -- Answer: one finished session is one request, two ops.
+            tend_and_finish(page, "Concept A")
+            wait_until(page, lambda: len(grove.writes) >= 1, f"[{engine}] the session to save")
+            page.wait_for_timeout(600)
+            assert len(grove.writes) == 1, f"[{engine}] expected one save for one session, got {grove.writes}"
+            method, body = grove.writes[0]
+            assert method == "PUT" and body.get("id") == "g1", f"[{engine}] unexpected save: {method} {body}"
+            ops = body.get("ops") or []
+            assert [o.get("op") for o in ops] == ["mastery", "session"], f"[{engine}] expected mastery then session, got {ops}"
+            assert ops[0] == {"op": "mastery", "concept": "c1", "value": 64}, f"[{engine}] wrong mastery op: {ops[0]}"
+            assert ops[1].get("concept") == "c1" and ops[1].get("opId"), f"[{engine}] session op needs the concept and an opId: {ops[1]}"
+            assert_ops_only(f"{engine} answer", grove, page)
+            page.get_by_role("button", name="Back to my grove", exact=True).click()
+            page.wait_for_selector("button[title='Concept A']", timeout=10000)
+
+            # -- Retry: a failed save stays queued and goes again, unchanged.
+            grove.writes.clear()
+            grove.fail_writes = 1
+            tend_and_finish(page, "Concept B")
+            wait_until(page, lambda: len(grove.writes) >= 2, f"[{engine}] the failed save to be retried")
+            assert grove.writes[0][1] == grove.writes[1][1], f"[{engine}] the retry isn't the same batch: {grove.writes}"
+            assert any(o.get("op") == "session" and o.get("opId") for o in grove.writes[1][1].get("ops") or []), f"[{engine}] retried batch lost its session op: {grove.writes[1]}"
+            page.wait_for_timeout(2500)
+            assert len(grove.writes) == 2, f"[{engine}] a save that succeeded on retry was sent again: {grove.writes}"
+            assert_ops_only(f"{engine} retry", grove, page)
+            page.get_by_role("button", name="Back to my grove", exact=True).click()
+            page.wait_for_selector("button[title='Concept A']", timeout=10000)
+            assert not page.get_by_text("Couldn't save your grove").count(), f"[{engine}] save error still showing after the retry succeeded"
+
+            # -- Hide: one batch in flight at a time; the beacon takes only
+            # what hasn't been sent, and it isn't sent a second time.
+            grove.writes.clear()
+            grove.hold_write = True
+            remove_tree(page, "Concept C")
+            wait_until(page, lambda: grove.held_write is not None, f"[{engine}] the first remove to be in flight")
+            remove_tree(page, "Concept B")
+            page.wait_for_timeout(500)
+            assert len(grove.writes) == 1, f"[{engine}] a second batch left while the first was still in flight: {grove.writes}"
+            assert grove.writes[0][1].get("ops") == [{"op": "remove", "concept": "c3"}], f"[{engine}] unexpected in-flight batch: {grove.writes[0]}"
+            page.evaluate(HIDE)
+            sent = beacons(page)
+            assert len(sent) == 1 and sent[0].get("id") == "g1" and sent[0].get("ops") == [{"op": "remove", "concept": "c2"}], (
+                f"[{engine}] the hide beacon should carry only the unsent remove: {sent}"
+            )
+            page.evaluate(SHOW)
+            grove.hold_write = False
+            grove.answer_write(*grove.held_write)
+            page.wait_for_timeout(1500)
+            assert len(grove.writes) == 1, f"[{engine}] ops handed to the beacon were sent again: {grove.writes}"
+            assert_ops_only(f"{engine} hide", grove, page)
+            page.close()
+
+            # -- Failed load: two groves, so nothing auto-opens; open one and
+            # the GET fails. Nothing may be written, including on page hide.
+            grove = GroveMock(GROVE_TREES)
+            grove.get_status = 500
+            page = grove_ops_page(browser, grove, two_groves)
+            page.goto(base_url, wait_until="networkidle")
+            page.get_by_role("button", name="Choose or add a grove").click()
+            page.get_by_text("Biology").click()
+            page.wait_for_selector("text=Couldn't load that grove", timeout=10000)
+            page.wait_for_timeout(1500)
+            page.evaluate(HIDE)
+            page.evaluate("() => window.dispatchEvent(new Event('pagehide'))")
+            assert grove.writes == [], f"[{engine}] wrote after a failed grove load: {grove.writes}"
+            assert beacons(page) == [], f"[{engine}] sent a beacon after a failed grove load: {beacons(page)}"
+            page.close()
+
+            # -- Guest: a grove held only in this tab. Adding a second batch to
+            # the open grove must work and must never call /api/grove - the
+            # add-to-existing path used to go to the server for everyone, so a
+            # guest (no session) got "Couldn't add to this grove".
+            page = browser.new_page(viewport={"width": 375, "height": HEIGHT})
+            page.emulate_media(reduced_motion="reduce")
+            grove_requests = []
+            page.on("request", lambda r: grove_requests.append(f"{r.method} {r.url}") if "/api/grove" in r.url else None)
+            page.route("**/api/anthropic", mock_anthropic)
+            page.goto(base_url, wait_until="networkidle")
+            guest_btn = page.get_by_text("Continue as a guest")
+            if guest_btn.count():
+                guest_btn.click()
+            for planted in (2, 4):
+                topic_input = page.get_by_placeholder("A topic, or paste a URL")
+                topic_input.fill("Test topic")
+                topic_input.press("Enter")
+                page.wait_for_selector("text=Here's what I found", timeout=10000)
+                page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
+                # Planted, then auto-advanced into the session - or bounced Home with the error.
+                failed = page.get_by_text("Couldn't add to this grove")
+                page.get_by_text("What is 2 + 2").or_(failed).first.wait_for(timeout=10000)
+                assert not failed.count(), f"[{engine}] a guest couldn't add to their open grove"
+                page.get_by_text("← Back to my grove").click()
+                page.wait_for_selector(".treeLabel", timeout=10000)
+                trees = page.locator(".treeLabel").count()
+                assert trees == planted, f"[{engine}] guest grove should hold {planted} trees, has {trees}"
+            assert grove_requests == [], f"[{engine}] a guest's grove reached the server: {grove_requests}"
+            page.close()
+
+            browser.close()
+            print(f"  [{engine}] grove ops: slow load, answer, retry, hide, failed load, guest add all hold")
+    print("Grove-ops checks passed")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:3000")
@@ -443,6 +770,7 @@ def main():
         run_photo_review(args.base_url, Path(args.out_dir))
         run_play(args.base_url, Path(args.out_dir))
         run_header_long_name(args.base_url, Path(args.out_dir))
+        run_grove_ops(args.base_url)
     except Exception as exc:  # surface a clear failure instead of a bare traceback
         print(f"mobile-check failed: {exc}", file=sys.stderr)
         sys.exit(1)

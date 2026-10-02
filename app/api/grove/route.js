@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { cfg, resolveStudent } from "../../lib/auth";
+import { applyWithRetry } from "../../lib/groveOps";
 
 // Load, save, rename, or delete a single grove. Every grove belongs to a
 // student (student_id). Identity comes from the session cookie via
@@ -8,6 +9,10 @@ import { cfg, resolveStudent } from "../../lib/auth";
 // a legacy fallback for unclaimed beta rows. Every read and write is filtered
 // by the resolved student_id, so one person can never touch another's grove
 // even with a guessed grove id.
+//
+// An existing grove is changed through `ops` (see lib/groveOps.js): small
+// operations applied here against the row's own current concepts, never a
+// client-computed array.
 
 function base(c) { return `${c.rest}/groves`; }
 
@@ -39,27 +44,54 @@ export async function PUT(request) {
   if (hasConcepts && body.concepts.length > 500) return Response.json({ error: "Too many concepts." }, { status: 400 });
 
   if (body.id) {
-    // Adding to an existing grove: merge server-side against the row's own
-    // current concepts instead of trusting a client-computed array, which may
-    // not reflect a load that hasn't fully settled yet.
-    if (Array.isArray(body.append)) {
-      const cur = await fetch(`${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}&select=concepts`, { headers: c.db, cache: "no-store" });
-      const curRows = cur.ok ? await cur.json() : [];
-      if (!curRows[0]) return Response.json({ error: "Grove not found." }, { status: 404 });
-      const merged = [...(Array.isArray(curRows[0].concepts) ? curRows[0].concepts : []), ...body.append];
-      if (merged.length > 500) return Response.json({ error: "Too many concepts." }, { status: 400 });
-      const patch = { concepts: merged, updated_at: new Date().toISOString() };
-      if (name !== undefined) patch.name = name;
-      const res = await fetch(`${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}`, {
-        method: "PATCH",
-        headers: { ...c.db, Prefer: "return=minimal" },
-        body: JSON.stringify(patch),
+    // Operations on an existing grove: read the row, apply the ops to its own
+    // current concepts, and write only if the row is still the one that was
+    // read (the PATCH is filtered on the updated_at it saw). If another
+    // request wrote in between, zero rows come back and the read-apply-write
+    // runs again against the fresh row. A top-level `append` is the Sep 11
+    // spelling of the append op, still sent by tabs opened before this deploy.
+    if (Array.isArray(body.ops) || Array.isArray(body.append)) {
+      const ops = Array.isArray(body.ops) ? body.ops : [{ op: "append", concepts: body.append }];
+      const where = `${base(c)}?id=eq.${encodeURIComponent(body.id)}&student_id=eq.${encodeURIComponent(student)}`;
+      const out = await applyWithRetry({
+        ops,
+        read: async () => {
+          const cur = await fetch(`${where}&select=name,concepts,updated_at`, { headers: c.db, cache: "no-store" });
+          if (!cur.ok) throw new Error("read failed");
+          const rows = await cur.json();
+          return rows[0] || null;
+        },
+        write: async (row, next) => {
+          // Strictly later than the stamp that was read, even within the same
+          // millisecond, so the next conditional write can tell them apart.
+          const stamp = new Date(Math.max(Date.now(), (Date.parse(row.updated_at) || 0) + 1)).toISOString();
+          const patch = { concepts: next.concepts, updated_at: stamp };
+          if (next.name !== row.name) patch.name = next.name;
+          const res = await fetch(`${where}&updated_at=eq.${encodeURIComponent(row.updated_at)}&select=id`, {
+            method: "PATCH",
+            headers: { ...c.db, Prefer: "return=representation" },
+            body: JSON.stringify(patch),
+          });
+          if (!res.ok) throw new Error("write failed");
+          const rows = await res.json();
+          return rows.length > 0;
+        },
       });
-      if (!res.ok) return Response.json({ error: "Database write failed." }, { status: 502 });
-      return Response.json({ ok: true, id: body.id, concepts: merged });
+      if (out.status === "notFound") return Response.json({ error: "Grove not found." }, { status: 404 });
+      if (out.status === "invalid") return Response.json({ error: out.error }, { status: 400 });
+      if (out.status === "conflict") {
+        console.error(`[grove-ops] conflict: gave up after retries grove=${body.id} student=${student}`);
+        return Response.json({ error: "Grove is busy. Try again." }, { status: 409 });
+      }
+      if (out.status !== "ok") return Response.json({ error: "Database write failed." }, { status: 502 });
+      return Response.json({ ok: true, id: body.id, name: out.name, concepts: out.concepts });
     }
 
-    // Update an existing grove. Omitting concepts allows a rename-only call.
+    // Legacy whole-array update, kept for this release only so a tab opened
+    // before the ops deploy keeps saving; the current client never sends
+    // `concepts` with an id. Deleted, with the allowEmpty guard, in the next
+    // push (roadmap, Next). Omitting concepts allows a rename-only call.
+    if (hasConcepts) console.warn(`[grove-legacy] whole-array write grove=${body.id} student=${student} n=${body.concepts.length}`);
     // A non-empty concepts array is never replaced with an empty one unless
     // the caller explicitly says allowEmpty (only clearGrove()/removeTree()'s
     // own direct calls do) - this is the other half of the fix for the Sep 8
