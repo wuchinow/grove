@@ -8,3 +8,19 @@ body {
   margin: 0;
   overflow-x: hidden;
 }
+
+body {
+  background: #fafbf5;
+  font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Form controls don't inherit the page font by default, so a button with no
+   inline fontFamily used to render in Arial. font-family only, not the `font`
+   shorthand: that would also reset size, and a button with no inline fontSize
+   would grow from 13.3px to 16px. */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}

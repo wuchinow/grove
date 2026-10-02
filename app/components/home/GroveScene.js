@@ -6,8 +6,12 @@ import Tree from "../Tree";
 import Icon from "../Icon";
 import GroveBackdrop from "../GroveBackdrop";
 
-// The grove scene: the backdrop, the scrolling row of trees with their labels,
-// the legend (or the empty-grove copy), and the stats strip under it.
+// The grove scene: the backdrop, the scrolling row of trees with their floating
+// labels, the legend (or the empty-grove copy), and the stats strip under it.
+//
+// The stage's height is the .groveStage rule in ui.css, an explicit height
+// rather than an aspect-ratio. Each label sits in a fixed-height slot, so every
+// tree stands on the same ground line however many lines its name takes.
 export default function GroveScene({ g }) {
   const { concepts, grewIds, justPlantedIds, setSelected } = g;
   const has = concepts.length > 0;
@@ -40,33 +44,37 @@ export default function GroveScene({ g }) {
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
   }
 
+  const arrow = (on) => ({ width: 28, height: 28, border: "none", background: "transparent", padding: 0, display: "flex", alignItems: "center", visibility: on ? "visible" : "hidden", cursor: on ? "pointer" : "default" });
+
   return (
-    <div style={{ margin: "16px 20px 0", borderRadius: 22, overflow: "hidden", boxShadow: "0 18px 38px rgba(58,42,32,.18), 0 2px 6px rgba(58,42,32,.08)", border: `1px solid ${C.line}` }}>
-      <div style={{ position: "relative", minHeight: has ? 300 : 264, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+    <div style={{ margin: "14px 16px 0", borderRadius: 22, overflow: "hidden", border: `1px solid ${C.line}`, background: C.bg, boxShadow: "0 14px 34px rgba(31,56,36,.10)" }}>
+      <div className={has ? "groveStage" : "groveStage isEmpty"}>
         <GroveBackdrop />
         {has ? (
           <div style={{ position: "relative", zIndex: 1 }}>
-          <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "28px 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+            <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "24px 8px 10px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
               {(() => { let plantedIndex = 0; return ordered.map((c) => {
                 const justPlanted = justPlantedIds.includes(c.id);
-                const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 };
+                const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 3px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 88 };
                 if (justPlanted) style.animationDelay = `${Math.min(plantedIndex++, 6) * 50}ms`;
                 return (
                   <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""} style={style} title={c.name}>
-                    <Tree days={c.days} mastery={c.mastery} width={68} />
-                    <span className="treeLabel" title={c.name}>{c.name}</span>
+                    <Tree days={c.days} mastery={c.mastery} width={76} />
+                    <span className="treeLabelSlot">
+                      <span className="treeLabelCard"><span className="treeLabel" title={c.name}>{c.name}</span></span>
+                    </span>
                   </button>
                 );
               }); })()}
             </div>
-            </div>
-          ) : (
-            <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "center", padding: "0 20px 16px" }}>
-              <Tree days={0} mastery={0} width={78} />
-            </div>
-          )}
+          </div>
+        ) : (
+          <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "center", padding: "0 20px 16px" }}>
+            <Tree days={0} mastery={0} width={78} />
+          </div>
+        )}
       </div>
-      <div style={{ background: C.card, borderTop: `1px solid ${C.line}`, padding: "11px 14px", textAlign: "center" }}>
+      <div style={{ borderTop: `1px solid ${C.line}`, padding: has ? "6px 10px" : "16px 18px 18px", textAlign: "center" }}>
         {has ? (
           <div style={{ display: "flex", alignItems: "center" }}>
             {/* Reserved-width slots at the outer edges keep the text centred
@@ -74,24 +82,24 @@ export default function GroveScene({ g }) {
                 shows follows the real scroll position: only right at the
                 start, only left at the end, both in between, none if
                 everything already fits. */}
-            <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden", cursor: canScrollLeft ? "pointer" : "default" }}>
-              <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
+            <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ ...arrow(canScrollLeft), justifyContent: "flex-start" }}>
+              <Icon name="chevronLeft" size={16} color={C.primary} strokeWidth={2.4} />
             </button>
-            <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions</div>
-            <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden", cursor: canScrollRight ? "pointer" : "default" }}>
-              <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: C.sub }}>Taller = more sessions</div>
+            <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ ...arrow(canScrollRight), justifyContent: "flex-end" }}>
+              <Icon name="chevronRight" size={16} color={C.primary} strokeWidth={2.4} />
             </button>
           </div>
         ) : (
           <>
-            <div className="disp" style={{ fontSize: 18, fontWeight: 600, color: C.ink }}>A quiet, empty grove</div>
-            <div style={{ fontSize: 13, color: C.sub, fontWeight: 700, marginTop: 4, lineHeight: 1.5, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
+            <div className="disp" style={{ fontSize: 22, fontWeight: 500, color: C.ink }}>A quiet, empty grove</div>
+            <div style={{ fontSize: 14, color: C.sub, marginTop: 6, lineHeight: 1.55, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
           </>
         )}
       </div>
       {has && (
-        <div style={{ background: C.card, display: "flex", justifyContent: "space-around", padding: "13px 8px", fontSize: 12.5 }}>
-          <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18 }}>{concepts.length}</div><div style={{ color: C.sub, fontWeight: 700 }}>Planted</div></div>
+        <div style={{ borderTop: `1px solid ${C.line}`, display: "flex", justifyContent: "space-around", padding: "10px 8px 11px", fontSize: 12 }}>
+          <div style={{ textAlign: "center" }}><div style={{ fontWeight: 600, fontSize: 18, lineHeight: 1.2 }}>{concepts.length}</div><div style={{ color: C.sub }}>Planted</div></div>
         </div>
       )}
     </div>

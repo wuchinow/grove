@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { C, FONTS } from "../lib/theme";
+import { C, FONTS, FONT_BODY } from "../lib/theme";
 import Icon from "../components/Icon";
 
 // Gated server-side by /api/admin/whoami (same requireAdmin() every other
@@ -66,7 +66,7 @@ export default function AdminLayout({ children }) {
   }, []);
 
   const shell = (inner) => (
-    <div className="nunito minvh" style={{ background: C.bg, color: C.ink, fontFamily: "'Nunito',sans-serif" }}>
+    <div className="minvh" style={{ background: C.bg, color: C.ink, fontFamily: FONT_BODY }}>
       {/* <style> is an HTML raw-text element: it never decodes entities, so
           React's JSX-text escaping of FONTS/DRAWER_CSS (' -> &#x27;, etc.)
           would land in the served HTML literally and force a full client
@@ -90,7 +90,7 @@ export default function AdminLayout({ children }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 16 }}>
           <div style={{ width: 32, height: 32, borderRadius: 11, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={16} color="#FCEFE4" /></div>
           <div style={{ minWidth: 0 }}>
-            <div className="disp" style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.1 }}>Grove</div>
+            <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.1 }}>Grove</div>
             <div style={{ fontSize: 11, color: C.sub, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{me ? `${me.username || me.student_id} · admin` : "admin"}</div>
           </div>
         </div>

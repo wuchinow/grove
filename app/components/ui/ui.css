@@ -1,0 +1,111 @@
+/* Styles for the shared redesign pieces and the Home bar. Only what a media
+   query or a pseudo-class has to own lives here: an inline style outranks any
+   class rule, so anything set inline could not be overridden below. Palette
+   values stay in app/lib/theme.js and reach the components inline. */
+
+/* ---- PillButton ---- */
+.uiPill {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.uiPill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.uiPill:focus-visible,
+.uiClose:focus-visible {
+  outline: 3px solid #7a9f56;
+  outline-offset: 2px;
+}
+
+/* ---- Field ---- */
+.uiField:focus {
+  box-shadow: 0 0 0 3px rgba(122, 159, 86, 0.3);
+}
+.uiField::placeholder {
+  color: #94a089;
+}
+
+/* ---- ModalCard close button ---- */
+.uiClose {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- Home: the scene frame ----
+   Explicit heights, never aspect-ratio: on a real iPhone an aspect-ratio box
+   inside a clipped parent collapsed to zero (Sept 12). */
+.groveStage {
+  position: relative;
+  height: 300px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.groveStage.isEmpty {
+  height: 240px;
+}
+.treeLabelSlot {
+  display: block;
+  width: 100%;
+  height: 58px;
+  margin-top: 4px;
+}
+@media (max-width: 420px) {
+  .treeLabelSlot {
+    height: 54px;
+  }
+}
+
+/* ---- Home: the bottom action bar ----
+   Fixed above the home indicator. The blur is on this bar and nowhere else:
+   blurring every tree label costs scroll performance on older phones. */
+.actionBar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 10;
+  width: calc(100% - 24px);
+  max-width: 400px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(252, 252, 243, 0.93);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border: 1px solid #fff;
+  border-radius: 29px;
+  box-shadow: 0 10px 30px rgba(31, 56, 36, 0.16), 0 0 0 1px rgba(35, 72, 48, 0.06);
+}
+.actionBarRow {
+  display: flex;
+  gap: 6px;
+}
+.actionBarBtn {
+  height: 46px;
+  padding: 0 16px;
+  font-size: 14px;
+  min-width: 0;
+}
+.actionBarBtn.grows {
+  flex: 1 1 auto;
+}
+@media (max-width: 360px) {
+  .actionBarBtn {
+    padding: 0 11px;
+    font-size: 13.5px;
+  }
+  .actionBarTopicIcon {
+    display: none;
+  }
+}
+/* Room under the page content so the last line can scroll clear of the bar. */
+.actionBarClearance {
+  height: calc(132px + env(safe-area-inset-bottom));
+}
+.actionBarClearance.oneRow {
+  height: calc(84px + env(safe-area-inset-bottom));
+}

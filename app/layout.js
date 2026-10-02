@@ -1,4 +1,6 @@
+import "./fonts/fonts.css";
 import "./globals.css";
+import "./components/ui/ui.css";
 
 export const metadata = {
   title: "Grove",
@@ -10,7 +12,7 @@ export const viewport = {
   initialScale: 1,
   viewportFit: "cover",
   colorScheme: "light",
-  themeColor: "#F1E5D2",
+  themeColor: "#fafbf5",
 };
 
 export default function RootLayout({ children }) {

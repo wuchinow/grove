@@ -230,6 +230,38 @@ def mock_signed_in(page, groves=None, grove=None):
     return grove
 
 
+def open_topic_field(page):
+    """The typed-topic field sits behind the Home bar's "Type a topic" button
+    (redesign branch). The bar is fixed to the bottom of the screen and a text
+    field there would end up under the iOS keyboard, so the field opens in a
+    card instead. Returns the field, ready to fill."""
+    page.get_by_role("button", name="Type a topic").click()
+    return page.get_by_placeholder("A topic, or paste a URL")
+
+
+def assert_bar_fits(page, width, label):
+    """The Home bar must sit inside the viewport with every button inside the
+    bar - the three labels are the widest thing on Home at 320px."""
+    box = page.evaluate("""
+    () => {
+      const bar = document.querySelector('.actionBar');
+      if (!bar) return null;
+      const r = bar.getBoundingClientRect();
+      const buttons = [...bar.querySelectorAll('button')].map((b) => {
+        const br = b.getBoundingClientRect();
+        return { text: b.innerText.trim(), left: br.left, right: br.right, clipped: b.scrollWidth > b.clientWidth + 1 };
+      });
+      return { left: r.left, right: r.right, bottom: r.bottom, vh: window.innerHeight, buttons, docWidth: document.documentElement.scrollWidth };
+    }
+    """)
+    assert box, f"[{label}] no .actionBar on Home"
+    assert box["left"] >= 0 and box["right"] <= width + 0.5, f"[{label}] Home bar runs off the screen: {box}"
+    assert box["bottom"] <= box["vh"], f"[{label}] Home bar sits below the viewport: {box}"
+    assert box["docWidth"] <= width, f"[{label}] Home scrolls sideways ({box['docWidth']}px wide)"
+    for b in box["buttons"]:
+        assert b["left"] >= box["left"] and b["right"] <= box["right"] + 0.5 and not b["clipped"], f"[{label}] bar button {b['text']!r} doesn't fit: {b}"
+
+
 def run(base_url: str, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
@@ -248,8 +280,9 @@ def run(base_url: str, out_dir: Path):
                 guest_btn.click()
 
             page.screenshot(path=str(out_dir / f"home-{width}.png"), full_page=True)
+            assert_bar_fits(page, width, f"{width}px")
 
-            topic_input = page.get_by_placeholder("A topic, or paste a URL")
+            topic_input = open_topic_field(page)
             topic_input.fill("Test topic")
             topic_input.press("Enter")
             page.wait_for_selector("text=Here's what I found", timeout=10000)
@@ -498,7 +531,7 @@ def run_header_long_name(base_url: str, out_dir: Path):
             body=anthropic_body({"subject": "Music theory", "concepts": [{"name": "Intervals", "note": "n"}]}),
         ))
         page.goto(base_url, wait_until="networkidle")
-        topic_input = page.get_by_placeholder("A topic, or paste a URL")
+        topic_input = open_topic_field(page)
         topic_input.fill("Music theory")
         topic_input.press("Enter")
         page.wait_for_selector("text=Here's what I found", timeout=10000)
@@ -738,7 +771,7 @@ def run_grove_ops(base_url: str):
             if guest_btn.count():
                 guest_btn.click()
             for planted in (2, 4):
-                topic_input = page.get_by_placeholder("A topic, or paste a URL")
+                topic_input = open_topic_field(page)
                 topic_input.fill("Test topic")
                 topic_input.press("Enter")
                 page.wait_for_selector("text=Here's what I found", timeout=10000)

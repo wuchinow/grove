@@ -31,7 +31,7 @@ const SORTS = [
 function Avatar({ s, size = 36 }) {
   const initial = (s.username || s.student_id || "?").charAt(0).toUpperCase();
   return (
-    <div style={{ width: size, height: size, borderRadius: 999, flexShrink: 0, background: s.avatar ? C.card : `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", display: "grid", placeItems: "center", fontWeight: 800, fontSize: size * 0.4, fontFamily: "'Fraunces',Georgia,serif", overflow: "hidden", border: `1px solid ${C.line}` }}>
+    <div style={{ width: size, height: size, borderRadius: 999, flexShrink: 0, background: s.avatar ? C.card : `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", display: "grid", placeItems: "center", fontWeight: 800, fontSize: size * 0.4, overflow: "hidden", border: `1px solid ${C.line}` }}>
       {s.avatar ? <img src={s.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
     </div>
   );
