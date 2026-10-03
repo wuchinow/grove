@@ -11,11 +11,11 @@ import { PLATE, layoutScene, panLabels, placeLabels, plateSize } from "../../lib
 // float above it. Where everything goes is worked out in lib/scene.js; this
 // measures the viewport and the labels, and draws.
 export default function GroveScene({ g }) {
-  const { concepts, grewIds, justPlantedIds, setSelected } = g;
+  const { activeGroveId, concepts, grewIds, justPlantedIds, setSelected } = g;
   const has = concepts.length > 0;
   const treeRowRef = React.useRef(null);
   const labelRefs = React.useRef({});
-  const opened = React.useRef(false);
+  const opened = React.useRef(null);
   // Label state across scroll frames: each label's slot and size (decided
   // once per layout), which labels were shown last frame, and where each was
   // last shown, so a hiding label fades out where it was.
@@ -94,6 +94,9 @@ export default function GroveScene({ g }) {
   }
   React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
+  // The opening view is set once per grove, when its trees first appear: a
+  // grove loads after Home mounts, so positioning only at first layout would
+  // centre on an empty plate and then leave the trees wherever they landed.
   // On open, set instantly before paint: on a phone, centred on the first
   // tree, so the second and third peek in at the edges as a cue to swipe;
   // on a wider screen, centred on the first copy of the plate. Then, if a
@@ -103,8 +106,9 @@ export default function GroveScene({ g }) {
   React.useLayoutEffect(() => {
     const el = treeRowRef.current;
     if (!el || !layout) return;
-    if (!opened.current) {
-      opened.current = true;
+    const openKey = `${activeGroveId || ""}|${has ? "trees" : "empty"}`;
+    if (opened.current !== openKey) {
+      opened.current = openKey;
       const prev = el.style.scrollBehavior;
       el.style.scrollBehavior = "auto";
       const first = layout.trees[0];
