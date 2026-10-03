@@ -279,9 +279,9 @@ export const PORTRAIT = {
   // grass, and a larger, stronger ground shadow. Tuned by eye.
   young: {
     stages: [1, 2, 3],
-    filter: { contrast: 1.12, brightness: 0.9, saturation: 1.1 },
-    halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.5 },
-    shadow: { size: 1.3, opacity: 0.72 },
+    filter: { contrast: 1.2, brightness: 0.82, saturation: 1.2 },
+    halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.6 },
+    shadow: { size: 1.4, opacity: 0.8 },
   },
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
   shrinkPerTree: 0.035,

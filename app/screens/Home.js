@@ -100,8 +100,8 @@ export default function Home({ g }) {
         </div>
       </div>
 
-      {/* Just above the bar, which is two rows tall when there are trees to tend. */}
-      {error && <Toast tone="warn" floating style={{ bottom: `calc(${has ? 136 : 84}px + env(safe-area-inset-bottom))` }}>{error}</Toast>}
+      {/* Just above the bar. */}
+      {error && <Toast tone="warn" floating style={{ bottom: "calc(90px + env(safe-area-inset-bottom))" }}>{error}</Toast>}
 
       <ActionBar g={g} has={has} onTopic={() => setTopicOpen(true)} />
 

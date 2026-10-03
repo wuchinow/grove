@@ -230,11 +230,23 @@ def mock_signed_in(page, groves=None, grove=None):
     return grove
 
 
+def open_add_sheet(page):
+    """Once a grove has trees, the Home bar is one row: "Tend the whole grove"
+    and a round "+" (aria-label "Add to your grove"). "Share your work" and
+    "Type a topic" then live in the sheet the "+" opens, so that has to be
+    opened first. An empty grove still shows both in the bar itself, and
+    this does nothing."""
+    add = page.get_by_role("button", name="Add to your grove")
+    if add.count() and add.is_visible():
+        add.click()
+
+
 def open_topic_field(page):
     """The typed-topic field sits behind the Home bar's "Type a topic" button
     (redesign branch). The bar is fixed to the bottom of the screen and a text
     field there would end up under the iOS keyboard, so the field opens in a
     card instead. Returns the field, ready to fill."""
+    open_add_sheet(page)
     page.get_by_role("button", name="Type a topic").click()
     return page.get_by_placeholder("A topic, or paste a URL")
 
@@ -249,7 +261,7 @@ def assert_bar_fits(page, width, label):
       const r = bar.getBoundingClientRect();
       const buttons = [...bar.querySelectorAll('button')].map((b) => {
         const br = b.getBoundingClientRect();
-        return { text: b.innerText.trim(), left: br.left, right: br.right, clipped: b.scrollWidth > b.clientWidth + 1 };
+        return { text: b.innerText.trim(), left: br.left, right: br.right, top: br.top, clipped: b.scrollWidth > b.clientWidth + 1 };
       });
       return { left: r.left, right: r.right, bottom: r.bottom, vh: window.innerHeight, buttons, docWidth: document.documentElement.scrollWidth };
     }
@@ -258,6 +270,8 @@ def assert_bar_fits(page, width, label):
     assert box["left"] >= 0 and box["right"] <= width + 0.5, f"[{label}] Home bar runs off the screen: {box}"
     assert box["bottom"] <= box["vh"], f"[{label}] Home bar sits below the viewport: {box}"
     assert box["docWidth"] <= width, f"[{label}] Home scrolls sideways ({box['docWidth']}px wide)"
+    tops = {round(b["top"]) for b in box["buttons"]}
+    assert len(tops) <= 1, f"[{label}] the Home bar isn't one row: button tops {sorted(tops)}"
     for b in box["buttons"]:
         assert b["left"] >= box["left"] and b["right"] <= box["right"] + 0.5 and not b["clipped"], f"[{label}] bar button {b['text']!r} doesn't fit: {b}"
 
@@ -425,6 +439,7 @@ def run_photo_review(base_url: str, out_dir: Path):
                 if guest_btn.count():
                     guest_btn.click()
 
+                open_add_sheet(page)
                 page.get_by_text("Share your work").click()
                 page.locator('input[type="file"]').set_input_files(files[:5])
                 page.wait_for_selector("text=Review your pages", timeout=10000)
