@@ -31,6 +31,18 @@ export const REPEAT = { left: 0.12, right: 0.88 };
 export const FULL_HEIGHT = 0.4;
 export const STAGE_CURVE = [0.12, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1];
 
+// The planted stage's art is an acorn in a wide, low mound, so sizing it by
+// height like the trees makes it read bigger than a sprout. It is sized by
+// width instead: at most this share of the sprout's drawn width at the same
+// anchor, on both plates.
+export const PLANTED_MAX_WIDTH = 0.7;
+function plantedSize(species, w, sproutH) {
+  const sprout = SCENE_ART[species][1];
+  const art = SCENE_ART[species][0];
+  const width = Math.min(w, PLANTED_MAX_WIDTH * sproutH * (sprout.w / sprout.h));
+  return { w: width, h: (width * art.h) / art.w };
+}
+
 // The seven anchors on this plate, in fill order: x and the foot's y as
 // fractions of the plate, depth as a scale (far rows are smaller). The first
 // three sit near the middle, so a new grove's trees are in the view that
@@ -80,8 +92,9 @@ export function layoutScene(concepts, plateW, plateH) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    const h = plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[stage];
-    const w = (h * art.w) / art.h;
+    let h = plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[stage];
+    let w = (h * art.w) / art.h;
+    if (stage === 0) ({ w, h } = plantedSize(species, w, plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[1]));
     const footX = tile * tileW + (mirrored ? crop.right - a.x : a.x - crop.left) * plateW;
     const footY = a.y * plateH;
     return { id: c.id, stage, species, mirrored, depth: a.depth, footX, footY, w, h, left: footX - art.footX * w, top: footY - art.footY * h, art };
@@ -254,8 +267,11 @@ export const PORTRAIT = {
   // No tree is drawn shorter than this on a 375-wide screen (the floor
   // scales with the screen's width). Each stage's floor is a little higher
   // than the last, so the stages still read in order where the floor applies.
+  // The planted mark is sized by width (PLANTED_MAX_WIDTH), so it has a
+  // minimum width instead, scaled the same way.
   minHeight: 28,
   minHeightStep: 0.08,
+  minPlantedWidth: 20,
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
   shrinkPerTree: 0.035,
   // Where the plate sits when a squarer screen crops it top and bottom:
@@ -370,9 +386,17 @@ export function layoutPortrait(concepts, vw, vh) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    const floor = PORTRAIT.minHeight * (vw / 375) * (1 + PORTRAIT.minHeightStep * stage);
-    const h = Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[stage] * scale, floor);
-    const w = (h * art.w) / art.h;
+    const floorFor = (st) => PORTRAIT.minHeight * (vw / 375) * (1 + PORTRAIT.minHeightStep * st);
+    const heightOf = (st) => Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[st] * scale, floorFor(st));
+    let h = heightOf(stage);
+    let w = (h * art.w) / art.h;
+    if (stage === 0) {
+      // By width: under the sprout's, and never under the minimum.
+      const raw = (plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[0] * scale * art.w) / art.h;
+      ({ w } = plantedSize(species, raw, heightOf(1)));
+      w = Math.max(w, PORTRAIT.minPlantedWidth * (vw / 375));
+      h = (w * art.h) / art.w;
+    }
     // Squeezed toward the centre on a narrow screen, then held fully on it.
     const wanted = vw / 2 + (a.x - 0.5) * plateW * squeeze;
     const footX = Math.min(Math.max(wanted, art.footX * w + 2), vw - (1 - art.footX) * w - 2);

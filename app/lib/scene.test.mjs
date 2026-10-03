@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
+  ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLANTED_MAX_WIDTH, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
   coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase,
 } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
@@ -55,7 +55,8 @@ test("height follows depth and stage; the foot sits on the anchor", () => {
     const a = ANCHORS[i % ANCHORS.length];
     const stage = Math.min(i, 7);
     assert.equal(t.stage, stage);
-    assert.ok(Math.abs(t.h - 600 * FULL_HEIGHT * a.depth * STAGE_CURVE[stage]) < 1e-9);
+    // The planted mark (stage 0) is sized by width; see its own test.
+    if (stage > 0) assert.ok(Math.abs(t.h - 600 * FULL_HEIGHT * a.depth * STAGE_CURVE[stage]) < 1e-9);
     assert.ok(Math.abs(t.left + t.art.footX * t.w - t.footX) < 1e-9);
     assert.ok(Math.abs(t.top + t.art.footY * t.h - t.footY) < 1e-9);
   });
@@ -372,8 +373,8 @@ test("the portrait stage curve keeps young trees legible and still rises every s
   assert.equal(c[7], 1);
   for (let i = 1; i < 8; i++) assert.ok(c[i] > c[i - 1]);
   for (let i = 0; i <= 3; i++) assert.ok(c[i] > STAGE_CURVE[i]);
-  const [t] = layoutPortrait(trees(1, () => 0), 375, 844).trees;
-  assert.ok(Math.abs(t.h - 844 * PORTRAIT.fullHeight * c[0]) < 1e-9);
+  const [t] = layoutPortrait(trees(1, () => 1), 375, 844).trees;
+  assert.ok(Math.abs(t.h - 844 * PORTRAIT.fullHeight * c[1]) < 1e-9);
   assert.deepEqual(PORTRAIT.tone, { brightness: 0.84, saturation: 0.72 });
   assert.deepEqual(sceneLayout(trees(3), 375, 844).tone, PORTRAIT.tone);
   assert.equal(sceneLayout(trees(3), 1280, 800).tone, undefined);
@@ -428,11 +429,35 @@ test("no portrait tree is drawn under the floor, and stages still read in order 
     const floor = PORTRAIT.minHeight * (vw / 375);
     const byStage = Array.from({ length: 8 }, (_, stage) => layoutPortrait(trees(n, () => stage), vw, vh).trees);
     for (let i = 0; i < n; i++) {
-      assert.ok(byStage[0][i].h >= floor - 1e-9, `${vw}, ${n} trees: tree ${i} is ${byStage[0][i].h}px`);
+      // The planted mark is sized by width and has a minimum width; every tree stage has the height floor.
+      assert.ok(byStage[0][i].w >= PORTRAIT.minPlantedWidth * (vw / 375) - 1e-9, `${vw}, ${n} trees: planted mark ${i} is ${byStage[0][i].w}px wide`);
+      assert.ok(byStage[1][i].h >= floor - 1e-9, `${vw}, ${n} trees: sprout ${i} is ${byStage[1][i].h}px`);
       for (let stage = 1; stage < 8; stage++) assert.ok(byStage[stage][i].h > byStage[stage - 1][i].h, `${vw}, ${n} trees, anchor ${i}: stage ${stage} isn't taller than ${stage - 1}`);
     }
   }
   assert.equal(PORTRAIT.minHeight, 28);
+  assert.equal(PORTRAIT.minPlantedWidth, 20);
+});
+
+test("the planted mark is narrower than the sprout and no taller, at every anchor and width", () => {
+  const check = (planted, sprout, where) => {
+    for (let i = 0; i < planted.length; i++) {
+      assert.ok(planted[i].w <= PLANTED_MAX_WIDTH * sprout[i].w + 1e-9, `${where}, anchor ${i}: planted ${planted[i].w} vs sprout ${sprout[i].w}`);
+      assert.ok(planted[i].w < sprout[i].w && planted[i].h <= sprout[i].h, `${where}, anchor ${i}: planted is not smaller than the sprout`);
+      // Still standing on its anchor.
+      assert.ok(Math.abs(planted[i].left + planted[i].art.footX * planted[i].w - planted[i].footX) < 1e-9);
+      assert.ok(Math.abs(planted[i].top + planted[i].art.footY * planted[i].h - planted[i].footY) < 1e-9);
+    }
+  };
+  // Portrait: the twelve anchors, and the generated spots past twelve.
+  for (const [vw, vh] of [[320, 844], [375, 844], [430, 932], [768, 1024]]) for (const n of [12, 20]) {
+    check(layoutPortrait(trees(n, () => 0), vw, vh).trees, layoutPortrait(trees(n, () => 1), vw, vh).trees, `portrait ${vw}, ${n} trees`);
+  }
+  // Wide: the seven anchors, on a desktop and a landscape phone.
+  for (const [vw, vh] of [[1280, 800], [844, 390]]) {
+    const { w, h } = plateSize(vw, vh);
+    check(layoutScene(trees(7, () => 0), w, h).trees, layoutScene(trees(7, () => 1), w, h).trees, `wide ${vw}`);
+  }
 });
 
 test("past twelve trees the generated spots are handed out in spread order", () => {
