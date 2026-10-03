@@ -57,9 +57,12 @@
 .sceneScroller::-webkit-scrollbar {
   display: none;
 }
+/* Clipped to the scene's width, which ends past the last tree rather than
+   at the end of the last plate copy. */
 .scenePlates {
   position: relative;
   z-index: 0;
+  overflow: hidden;
 }
 .scenePlateWindow {
   position: absolute;

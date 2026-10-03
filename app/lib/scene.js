@@ -36,6 +36,10 @@ export const ANCHORS = [
   { x: 0.83, y: 0.6, depth: 0.8 },    // middle row, right
 ];
 
+// The anchors' average horizontal gap, as a fraction of the plate width. The
+// scene ends this far past its right-most tree.
+export const ANCHOR_SPACING = (Math.max(...ANCHORS.map((a) => a.x)) - Math.min(...ANCHORS.map((a) => a.x))) / (ANCHORS.length - 1);
+
 // One species for every tree for now; the art is laid out per species so a
 // second one only needs its files and a rule here.
 export const speciesOf = () => "oak";
@@ -51,6 +55,9 @@ export function plateSize(vw, vh) {
 // Every tree's place, in plate pixels. A tree takes the anchor of its
 // position in `concepts`, so growing never moves it (removing one does: every
 // tree after it moves up an anchor). `z` orders drawing back to front.
+// The scene ends one anchor spacing past its right-most tree, so it doesn't
+// pan on into empty plate; never narrower than one full copy, and never past
+// the last copy's painted edge.
 export function layoutScene(concepts, plateW, plateH) {
   const per = ANCHORS.length;
   const tiles = Math.max(1, Math.ceil(concepts.length / per));
@@ -71,7 +78,9 @@ export function layoutScene(concepts, plateW, plateH) {
     return { id: c.id, stage, species, mirrored, depth: a.depth, footX, footY, w, h, left: footX - art.footX * w, top: footY - art.footY * h, art };
   });
   [...trees].sort((p, q) => p.footY - q.footY || p.footX - q.footX).forEach((t, rank) => { t.z = rank + 1; });
-  return { tiles, tileW, crop, width: tiles * tileW, trees };
+  const rightmost = trees.reduce((m, t) => Math.max(m, t.footX), 0);
+  const width = Math.min(tiles * tileW, Math.max(tileW, rightmost + ANCHOR_SPACING * plateW));
+  return { tiles, tileW, crop, width, trees };
 }
 
 const GAP = 6;

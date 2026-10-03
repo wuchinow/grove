@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ANCHORS, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
+import { ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 
 const trees = (n, days = () => 3) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: days(i), mastery: 0 }));
@@ -31,7 +31,7 @@ test("every other plate copy is mirrored, and so are its anchors", () => {
   const { trees: placed, tileW, width } = layoutScene(trees(15), 1000, 500);
   const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
   close(tileW, (REPEAT.right - REPEAT.left) * 1000);
-  close(width, 3 * tileW);
+  close(width, 2 * tileW + (ANCHORS[0].x - REPEAT.left + ANCHOR_SPACING) * 1000);
   close(placed[0].footX, (ANCHORS[0].x - REPEAT.left) * 1000);
   assert.equal(placed[7].mirrored, true);
   close(placed[7].footX, tileW + (REPEAT.right - ANCHORS[0].x) * 1000);
@@ -195,5 +195,29 @@ test("where clamped labels collide, the tree further back loses its label", () =
   assert.equal(res.shown.has("front"), true);
   assert.equal(res.shown.has("back"), false);
   assert.equal(res.pos.back.y, 350);
+});
+
+test("the scene ends one anchor spacing past its right-most tree", () => {
+  const W = 1000;
+  const copy = (REPEAT.right - REPEAT.left) * W;
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  close(ANCHOR_SPACING, 0.11);
+  // 3 and 7 trees: one whole plate; the last anchor plus a spacing fits inside it.
+  close(layoutScene(trees(3), W, 500).width, W);
+  close(layoutScene(trees(7), W, 500).width, W);
+  // 10 trees: the mirrored copy's first three anchors, the right-most at
+  // REPEAT.right - 0.38, then one spacing.
+  const ten = layoutScene(trees(10), W, 500);
+  close(ten.width, copy + (REPEAT.right - 0.38) * W + ANCHOR_SPACING * W);
+  assert.ok(ten.width < 2 * copy);
+  // 14 trees: the right-most foot plus a spacing would run past the second
+  // copy's edge, so the scene stops at the end of both copies.
+  const fourteen = layoutScene(trees(14), W, 500);
+  close(fourteen.width, 2 * copy);
+  for (const n of [3, 7, 10, 14]) {
+    const { width, tileW, trees: placed } = layoutScene(trees(n), W, 500);
+    assert.ok(width >= tileW, `${n} trees: narrower than one copy`);
+    assert.ok(placed.every((t) => t.footX <= width), `${n} trees: a tree past the end`);
+  }
 });
 
