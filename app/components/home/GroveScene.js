@@ -29,6 +29,7 @@ export default function GroveScene({ g }) {
   const lastPos = React.useRef({});
   const frame = React.useRef(0);
   const [view, setView] = React.useState(null);
+  const [fontsReady, setFontsReady] = React.useState(false);
   const [labels, setLabels] = React.useState({ pos: {}, shown: new Set() });
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
@@ -41,11 +42,20 @@ export default function GroveScene({ g }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  // Labels are measured to be placed. A label measured before the web fonts
+  // arrive is the wrong size (the fallback face wraps differently), so the
+  // layout is measured again once they're in.
+  React.useEffect(() => {
+    let live = true;
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (live) setFontsReady(true); });
+    return () => { live = false; };
+  }, []);
+
   const layout = view ? sceneLayout(concepts, view.vw, view.vh) : null;
   const plate = layout ? layout.plate : null;
   const offsetTop = layout ? layout.offsetTop : 0;
   const portrait = !!layout && layout.kind === "portrait";
-  const layoutKey = layout ? `${layout.kind}|${view.vw}x${view.vh}|${concepts.map((c) => `${c.id}:${c.days}:${c.name}`).join("|")}` : "";
+  const layoutKey = layout ? `${layout.kind}|${view.vw}x${view.vh}|${fontsReady ? "fonts" : "fallback"}|${concepts.map((c) => `${c.id}:${c.days}:${c.name}`).join("|")}` : "";
 
   // Measures the real scroll position rather than guessing from tree count,
   // since how much of the plate fits depends on the actual screen width.

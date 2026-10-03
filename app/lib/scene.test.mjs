@@ -91,7 +91,7 @@ const noOverlap = (rects) => {
 
 test("a label goes under its tree when there's room", () => {
   const pos = placeLabels([{ id: "a", footX: 500, footY: 300, top: 150, w: 120, h: 40 }], { minX: 0, maxX: 1000, minY: 0, maxY: 800 });
-  assert.deepEqual(pos.a, { x: 440, y: 306 });
+  assert.deepEqual(pos.a, { x: 440, y: 306, out: false });
 });
 
 test("a crowded label moves above its canopy, and none overlap", () => {
@@ -103,6 +103,18 @@ test("a crowded label moves above its canopy, and none overlap", () => {
   assert.equal(pos.front.y, 406);
   assert.equal(pos.back.y, 250 - 40 - 6);
   noOverlap(items.map((it) => ({ ...pos[it.id], w: it.w, h: it.h })));
+});
+
+test("a label with no slot between the notices and the bar is hidden, not shown under them", () => {
+  // A short screen: the band is shorter than the label is tall.
+  const items = [{ id: "tall", footX: 300, footY: 200, top: 80, w: 120, h: 70 }];
+  const slots = placeLabels(items, { minX: 0, maxX: 800, minY: 150, maxY: 210 });
+  assert.equal(slots.tall.out, true);
+  assert.equal(panLabels(items, slots, { sx: 0, vw: 800 }).shown.has("tall"), false);
+  // With room, the same label shows.
+  const roomy = placeLabels(items, { minX: 0, maxX: 800, minY: 0, maxY: 400 });
+  assert.equal(roomy.tall.out, false);
+  assert.equal(panLabels(items, roomy, { sx: 0, vw: 800 }).shown.has("tall"), true);
 });
 
 test("labels stay inside the band and the plate", () => {

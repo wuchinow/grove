@@ -106,7 +106,8 @@ const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b
 // meadow is crowded) a label never leaves its tree: it tries under the foot
 // and above the canopy, then one step further each way, each also nudged
 // left and right, and if none of those is free it stays under the foot,
-// where panLabels hides it rather than letting it drift across the scene. Returns { [id]: { x, y } }.
+// where panLabels hides it rather than letting it drift across the scene.
+// Returns { [id]: { x, y, out } }.
 export function placeLabels(items, band, obstacles = [], { beside = false } = {}) {
   const placed = [];
   const out = {};
@@ -137,7 +138,9 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
       pick = (inside.length ? inside : candidates).reduce((best, r) => (area(r) < area(best) ? r : best));
     }
     placed.push(pick);
-    out[it.id] = { x: pick.x, y: pick.y };
+    // `out`: no slot fits between the notices and the bar (a tall label on a
+    // short screen). panLabels hides it rather than show it under either.
+    out[it.id] = { x: pick.x, y: pick.y, out: !inBand(pick) };
   }
   return out;
 }
@@ -166,7 +169,7 @@ export function panLabels(items, slots, view, shownBefore = new Set(), obstacles
     const footIn = it.footX >= sx + margin && it.footX <= sx + vw - margin;
     const r = { x: Math.min(Math.max(it.footX - it.w / 2, left), right - it.w), y: slots[it.id].y, w: it.w, h: it.h };
     pos[it.id] = { x: r.x, y: r.y };
-    if (!footIn || accepted.some((p) => overlaps(p, r))) continue;
+    if (!footIn || slots[it.id].out || accepted.some((p) => overlaps(p, r))) continue;
     // A label never covers another tree's trunk base (portrait plate).
     if (obstacles.some((o) => o.id !== it.id && overlaps(o, r))) continue;
     accepted.push(r);
