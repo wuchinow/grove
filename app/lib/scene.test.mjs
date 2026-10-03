@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
+import { ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, openingMove, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 
 const trees = (n, days = () => 3) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: days(i), mastery: 0 }));
@@ -219,5 +219,68 @@ test("the scene ends one anchor spacing past its right-most tree", () => {
     assert.ok(width >= tileW, `${n} trees: narrower than one copy`);
     assert.ok(placed.every((t) => t.footX <= width), `${n} trees: a tree past the end`);
   }
+});
+
+// Runs a sequence of layout changes through openingMove, as the scene does.
+// A step can be { scrolled: true }: the student swiped the scene themselves.
+function opening(steps, start = OPENING) {
+  let state = start;
+  const moves = [];
+  for (const step of steps) {
+    if (step.scrolled) { state = { ...state, userScrolled: true }; continue; }
+    const res = openingMove(state, { focusId: null, ...step });
+    state = res.state;
+    moves.push({ centre: res.centre, panTo: res.panTo });
+  }
+  return moves;
+}
+const NOTHING = { centre: false, panTo: null };
+const CENTRE = { centre: true, panTo: null };
+
+test("a grove's trees centre the scene the first time they appear", () => {
+  // Home mounted before its grove loaded: empty plate, then the trees.
+  assert.deepEqual(opening([{ key: "", hasTrees: false }, { key: "g1", hasTrees: true }]), [CENTRE, CENTRE]);
+  // Home mounted with the grove already loaded.
+  assert.deepEqual(opening([{ key: "g1", hasTrees: true }]), [CENTRE]);
+});
+
+test("switching to a different grove centres again, even after a manual scroll", () => {
+  assert.deepEqual(
+    opening([{ key: "g1", hasTrees: true }, { scrolled: true }, { key: "g2", hasTrees: false }, { key: "g2", hasTrees: true }]),
+    [CENTRE, NOTHING, CENTRE],
+  );
+});
+
+test("nothing inside the same grove re-centres it", () => {
+  const sameGrove = { key: "g1", hasTrees: true };
+  // Planting, a session finishing, a rename, removing a tree: each is a layout
+  // change with the same grove key.
+  assert.deepEqual(opening([sameGrove, sameGrove, sameGrove, sameGrove]), [CENTRE, NOTHING, NOTHING, NOTHING]);
+  // Removing the last tree, then planting again.
+  assert.deepEqual(opening([sameGrove, { key: "g1", hasTrees: false }, sameGrove]), [CENTRE, NOTHING, NOTHING]);
+  // The same holds after the student has scrolled.
+  assert.deepEqual(opening([sameGrove, { scrolled: true }, { key: "g1", hasTrees: false }, sameGrove]), [CENTRE, NOTHING, NOTHING]);
+});
+
+test("a late load after a manual swipe leaves the scene where the student put it", () => {
+  assert.deepEqual(opening([{ key: "", hasTrees: false }, { scrolled: true }, { key: "g1", hasTrees: true }]), [CENTRE, NOTHING]);
+  // The sample grove opening over an empty plate the student has swiped.
+  assert.deepEqual(opening([{ key: "", hasTrees: false }, { scrolled: true }, { key: "sample", hasTrees: true }]), [CENTRE, NOTHING]);
+  // An empty scene isn't re-centred either once it has been placed.
+  assert.deepEqual(opening([{ key: "", hasTrees: false }, { scrolled: true }, { key: "", hasTrees: false }]), [CENTRE, NOTHING]);
+});
+
+test("the pan to a just-planted or just-grown tree takes priority", () => {
+  // Plant in an open grove: Home comes back as a fresh scene with the new tree.
+  assert.deepEqual(opening([{ key: "g1", hasTrees: true, focusId: "new" }]), [{ centre: true, panTo: "new" }]);
+  // Return from a session: a fresh scene with the tree that grew.
+  assert.deepEqual(opening([{ key: "g1", hasTrees: true, focusId: "grew" }]), [{ centre: true, panTo: "grew" }]);
+  // Even after a manual swipe, a late load still pans to it, without centring first.
+  assert.deepEqual(
+    opening([{ key: "", hasTrees: false }, { scrolled: true }, { key: "g1", hasTrees: true, focusId: "grew" }]),
+    [CENTRE, { centre: false, panTo: "grew" }],
+  );
+  // But only when the trees first appear, not on later changes in the same grove.
+  assert.deepEqual(opening([{ key: "g1", hasTrees: true }, { key: "g1", hasTrees: true, focusId: "grew" }]), [CENTRE, NOTHING]);
 });
 

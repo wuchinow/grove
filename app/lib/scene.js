@@ -147,3 +147,40 @@ export function panLabels(items, slots, view, shownBefore = new Set()) {
   }
   return { pos, shown };
 }
+
+// What the scene does about its scroll position when its layout changes.
+// `state` is carried from one call to the next (start from OPENING); `now` is
+// { key, hasTrees, focusId }: the grove the scene is showing ("" for none),
+// whether it has trees, and a just-planted or just-grown tree if there is one.
+// Returns { centre, panTo, state }.
+//   - A grove's trees appearing for the first time: centre (the component picks
+//     the first tree on a phone, the plate on a wide screen), then pan to the
+//     focus tree. Centring is skipped once the student has scrolled the scene
+//     themselves; the pan to a just-planted or just-grown tree still happens.
+//   - Anything changing inside the same grove (planting, removing, a session,
+//     emptying it and planting again): nothing.
+//   - Going from one grove to another forgets the manual scroll, since it's a
+//     different place. A grove arriving where there was none (a late load, or
+//     opening the sample) keeps it.
+//   - An empty scene is centred on the plate once, at first layout.
+export const OPENING = { key: null, centred: false, placed: false, userScrolled: false };
+
+export function openingMove(state, now) {
+  let { key, centred, placed, userScrolled } = state;
+  if (now.key !== key) {
+    if (key) userScrolled = false;
+    key = now.key;
+    centred = false;
+  }
+  let centre = false;
+  let panTo = null;
+  if (now.hasTrees && !centred) {
+    centred = true;
+    centre = !userScrolled;
+    panTo = now.focusId || null;
+  } else if (!now.hasTrees && !placed) {
+    centre = !userScrolled;
+  }
+  placed = true;
+  return { centre, panTo, state: { key, centred, placed, userScrolled } };
+}

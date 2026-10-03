@@ -3,7 +3,7 @@
 import React from "react";
 import Icon from "../Icon";
 import SceneTree from "./SceneTree";
-import { PLATE, layoutScene, panLabels, placeLabels, plateSize } from "../../lib/scene";
+import { OPENING, PLATE, layoutScene, openingMove, panLabels, placeLabels, plateSize } from "../../lib/scene";
 
 // The grove scene: the painted plate full-bleed behind Home, wider than a
 // phone, so it pans sideways; the trees standing on their anchors with their
@@ -11,11 +11,13 @@ import { PLATE, layoutScene, panLabels, placeLabels, plateSize } from "../../lib
 // float above it. Where everything goes is worked out in lib/scene.js; this
 // measures the viewport and the labels, and draws.
 export default function GroveScene({ g }) {
-  const { activeGroveId, concepts, grewIds, justPlantedIds, setSelected } = g;
+  const { activeGroveId, concepts, grewIds, justPlantedIds, preview, setSelected } = g;
   const has = concepts.length > 0;
   const treeRowRef = React.useRef(null);
   const labelRefs = React.useRef({});
-  const opened = React.useRef(null);
+  // What openingMove (lib/scene.js) has done so far, and whether the student
+  // has scrolled the scene themselves.
+  const opening = React.useRef(OPENING);
   // Label state across scroll frames: each label's slot and size (decided
   // once per layout), which labels were shown last frame, and where each was
   // last shown, so a hiding label fades out where it was.
@@ -94,29 +96,33 @@ export default function GroveScene({ g }) {
   }
   React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
-  // The opening view is set once per grove, when its trees first appear: a
-  // grove loads after Home mounts, so positioning only at first layout would
-  // centre on an empty plate and then leave the trees wherever they landed.
-  // On open, set instantly before paint: on a phone, centred on the first
-  // tree, so the second and third peek in at the edges as a cue to swipe;
-  // on a wider screen, centred on the first copy of the plate. Then, if a
+  // The student scrolling the scene themselves: a wheel, a touch drag or a
+  // chevron. The scene's own centring and panning don't count.
+  const markScrolled = () => { opening.current = { ...opening.current, userScrolled: true }; };
+
+  // Where the scene sits when its layout changes; openingMove decides. A
+  // grove's trees centre it the first time they appear (it loads after Home
+  // can mount), never on later changes in the same grove and never once the
+  // student has scrolled. Centring is instant, before paint: on a phone, on
+  // the first tree, so the second and third peek in at the edges as a cue to
+  // swipe; on a wider screen, on the first copy of the plate. Then, if a
   // tree was just planted or just grew, pan to it so the moment is on
   // screen. That pan follows .noscroll's scroll-behavior in theme.js:
   // smooth, or instant under the OS reduced-motion setting.
   React.useLayoutEffect(() => {
     const el = treeRowRef.current;
     if (!el || !layout) return;
-    const openKey = `${activeGroveId || ""}|${has ? "trees" : "empty"}`;
-    if (opened.current !== openKey) {
-      opened.current = openKey;
+    const focus = layout.trees.find((t) => justPlantedIds.includes(t.id)) || layout.trees.find((t) => grewIds.includes(t.id));
+    const move = openingMove(opening.current, { key: preview ? "sample" : activeGroveId || "", hasTrees: has, focusId: focus ? focus.id : null });
+    opening.current = move.state;
+    if (move.centre) {
       const prev = el.style.scrollBehavior;
       el.style.scrollBehavior = "auto";
       const first = layout.trees[0];
       el.scrollLeft = Math.max(0, view.vw < 600 && first ? first.footX - el.clientWidth / 2 : (layout.tileW - el.clientWidth) / 2);
       el.style.scrollBehavior = prev;
-      const focus = layout.trees.find((t) => justPlantedIds.includes(t.id)) || layout.trees.find((t) => grewIds.includes(t.id));
-      if (focus) el.scrollTo({ left: Math.max(0, focus.footX - el.clientWidth / 2) });
     }
+    if (move.panTo && focus) el.scrollTo({ left: Math.max(0, focus.footX - el.clientWidth / 2) });
     updateScrollState();
     placeForScroll();
   }, [layoutKey, updateScrollState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -127,6 +133,7 @@ export default function GroveScene({ g }) {
   function scrollTreeRow(dir) {
     const el = treeRowRef.current;
     if (!el) return;
+    markScrolled();
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
   }
 
@@ -134,7 +141,7 @@ export default function GroveScene({ g }) {
   return (
     <div className="scene">
       {layout && (
-        <div ref={treeRowRef} onScroll={onScroll} className="sceneScroller noscroll">
+        <div ref={treeRowRef} onScroll={onScroll} onWheel={markScrolled} onTouchMove={markScrolled} className="sceneScroller noscroll">
           <div className="scenePlates" style={{ width: layout.width, height: plate.h, top: offsetTop }}>
             {/* Each copy shows its window of the plate; odd copies are mirrored. */}
             {Array.from({ length: layout.tiles }, (_, k) => (
