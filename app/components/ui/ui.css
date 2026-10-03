@@ -32,39 +32,152 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ---- Home: the scene frame ----
-   Explicit heights, never aspect-ratio: on a real iPhone an aspect-ratio box
-   inside a clipped parent collapsed to zero (Sept 12). */
-.groveStage {
-  position: relative;
-  height: 300px;
+/* ---- Home: the full-bleed scene ----
+   The plate fills the viewport behind Home and pans sideways inside its own
+   scroller, so the page itself never scrolls sideways. Sizes are explicit
+   pixels set from JS (never aspect-ratio). Labels sit above every tree: the
+   tree buttons have no z-index, so each image and label layers against the
+   whole .scenePlates stacking context. */
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  background: #dfe8d2;
 }
-.groveStage.isEmpty {
-  height: 240px;
+.sceneScroller {
+  position: absolute;
+  inset: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
-/* A tree's column is as wide as its longest word needs (labels wrap only at
-   spaces and hyphens, never inside a word), never narrower than 88px, and
-   capped at 200px so a pasted URL can't make one giant column; a word past
-   the cap is clipped, not split. min-content is the widest unbreakable run
-   among the column's children: the tree drawing or the label's longest word. */
-.treeColumn {
-  width: min-content;
-  min-width: 88px;
-  max-width: 200px;
+.sceneScroller::-webkit-scrollbar {
+  display: none;
 }
-.treeLabelSlot {
+.scenePlates {
+  position: relative;
+  z-index: 0;
+}
+.scenePlateWindow {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.scenePlate {
+  position: absolute;
+  top: 0;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sceneTree {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sceneTreeImg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: 58px;
-  margin-top: 4px;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
-@media (max-width: 420px) {
-  .treeLabelSlot {
-    height: 54px;
+.sceneShadow {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(28, 44, 20, 0.42), rgba(28, 44, 20, 0));
+  pointer-events: none;
+}
+.sceneFade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 150px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(rgba(250, 251, 245, 0.92), rgba(250, 251, 245, 0.55) 55%, rgba(250, 251, 245, 0));
+}
+/* Low, just above the bar, so they don't sit on labels at the screen's edges. */
+.sceneChevron {
+  position: absolute;
+  bottom: calc(140px + env(safe-area-inset-bottom));
+  z-index: 3;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #fff;
+  background: rgba(250, 252, 240, 0.92);
+  box-shadow: 0 6px 18px rgba(31, 56, 36, 0.18);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.sceneChevron.left {
+  left: 10px;
+}
+.sceneChevron.right {
+  right: 10px;
+}
+
+/* Home's own content floats over the scene. The overlay and the notices
+   column let taps through to the scene; only their contents take them. */
+.homeOverlay {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+.homeOverlay > .groveHeader,
+.sceneTopStack > * {
+  pointer-events: auto;
+}
+.sceneTopStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 16px 0;
+  pointer-events: none;
+}
+.sceneChip {
+  padding: 8px 13px;
+  border-radius: 14px;
+  background: rgba(250, 252, 240, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 5px 18px rgba(31, 56, 36, 0.12);
+}
+.sceneCard {
+  align-self: stretch;
+  padding: 16px 18px 16px;
+  border-radius: 20px;
+  background: rgba(250, 251, 245, 0.95);
+  border: 1px solid #fff;
+  box-shadow: 0 10px 30px rgba(31, 56, 36, 0.16);
+}
+
+/* ---- Progress: four stats in a row, two by two below 360px so their
+   labels stay on one line. */
+.progressStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 360px) {
+  .progressStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -111,11 +224,4 @@
   .actionBarTopicIcon {
     display: none;
   }
-}
-/* Room under the page content so the last line can scroll clear of the bar. */
-.actionBarClearance {
-  height: calc(132px + env(safe-area-inset-bottom));
-}
-.actionBarClearance.oneRow {
-  height: calc(84px + env(safe-area-inset-bottom));
 }

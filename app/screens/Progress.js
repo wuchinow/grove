@@ -43,7 +43,7 @@ export default function Progress({ g }) {
     const Stat = ({ n, label, color }) => (
       <Card style={{ flex: 1, minWidth: 0, padding: "14px 6px 12px", textAlign: "center" }}>
         <div className="disp" style={{ fontSize: 26, fontWeight: 500, lineHeight: 1.1, color: color || C.ink }}>{n}</div>
-        <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4, lineHeight: 1.3 }}>{label}</div>
+        <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4, lineHeight: 1.3, whiteSpace: "nowrap" }}>{label}</div>
       </Card>
     );
 
@@ -64,7 +64,7 @@ export default function Progress({ g }) {
             <div style={{ fontSize: 14.5, color: C.sub, marginTop: 8, lineHeight: 1.6 }}>{note()}</div>
           </Card>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <div className="progressStats" style={{ marginTop: 14 }}>
             <Stat n={total} label="Concepts" />
             <Stat n={sessions} label="Sessions" />
             <Stat n={fullGrown} label={topStage} color={C.sageDeep} />

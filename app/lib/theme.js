@@ -40,20 +40,24 @@ export const FONTS = `
 .minvh{min-height:100vh;min-height:100dvh}
 .noscroll::-webkit-scrollbar{display:none}
 .noscroll{scroll-behavior:smooth}
-.treeLabelCard{
-  display:block; width:100%; box-sizing:border-box;
-  padding:6px 5px; border-radius:12px;
-  border:1px solid rgba(255,255,255,.88);
-  background:rgba(250,252,240,.94);
-  box-shadow:0 5px 18px rgba(33,65,37,.10);
+/* A tree's pinned label on the Home scene: name (two lines at most, wrapping
+   only at spaces and hyphens), stage name under it, a small arrow. It grows
+   to fit a long word rather than splitting it. */
+.treeLabelPin{
+  position:absolute; display:flex; align-items:center; gap:6px;
+  width:max-content; max-width:172px; min-width:min-content;
+  padding:7px 8px 7px 11px; border-radius:13px;
+  border:1px solid rgba(255,255,255,.9); background:rgba(250,252,240,.94);
+  box-shadow:0 5px 18px rgba(33,65,37,.16);
+  text-align:left; color:#234332; cursor:pointer;
 }
+.treeLabelText{ display:block; min-width:0 }
 .treeLabel{
-  color:#234332; font-size:11.5px; font-weight:500; line-height:1.25;
-  text-align:center; overflow:hidden;
+  font-size:12.5px; font-weight:500; line-height:1.25; overflow:hidden;
   overflow-wrap:normal; word-break:normal; -webkit-hyphens:manual; hyphens:manual;
-  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
 }
-@media (max-width:420px){ .treeLabel{ font-size:11px } .treeLabelCard{ padding:5px 4px } }
+.treeLabelStage{ display:block; font-size:10.5px; line-height:1.3; color:#687b64; margin-top:1px }
 @media (prefers-reduced-motion: reduce){
   .fadeUp,.pop,.grew,.planted,.dotPulse{animation:none}
   .noscroll{scroll-behavior:auto}
