@@ -3,7 +3,7 @@
 import React from "react";
 import Icon from "../Icon";
 import SceneTree from "./SceneTree";
-import { PLATE, layoutScene, placeLabels, plateSize } from "../../lib/scene";
+import { PLATE, layoutScene, panLabels, placeLabels, plateSize } from "../../lib/scene";
 
 // The grove scene: the painted plate full-bleed behind Home, wider than a
 // phone, so it pans sideways; the trees standing on their anchors with their
@@ -16,8 +16,16 @@ export default function GroveScene({ g }) {
   const treeRowRef = React.useRef(null);
   const labelRefs = React.useRef({});
   const opened = React.useRef(false);
+  // Label state across scroll frames: each label's slot and size (decided
+  // once per layout), which labels were shown last frame, and where each was
+  // last shown, so a hiding label fades out where it was.
+  const labelItems = React.useRef([]);
+  const labelSlots = React.useRef({});
+  const shownRef = React.useRef(new Set());
+  const lastPos = React.useRef({});
+  const frame = React.useRef(0);
   const [view, setView] = React.useState(null);
-  const [labels, setLabels] = React.useState({});
+  const [labels, setLabels] = React.useState({ pos: {}, shown: new Set() });
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
 
@@ -45,9 +53,22 @@ export default function GroveScene({ g }) {
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
   }, []);
 
-  // Labels: measured after render, then placed clear of each other and of
-  // the floating notices and bar (converted to plate pixels). Runs before
-  // paint, so the first placement is never seen.
+  // Where the labels go for the current scroll position: each keeps its slot
+  // and only slides sideways (panLabels in lib/scene.js).
+  const placeForScroll = React.useCallback(() => {
+    const el = treeRowRef.current;
+    if (!el || !labelItems.current.length) return;
+    const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current);
+    shownRef.current = res.shown;
+    for (const id of Object.keys(res.pos)) {
+      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = res.pos[id];
+    }
+    setLabels({ pos: { ...lastPos.current }, shown: res.shown });
+  }, []);
+
+  // Labels: measured after render, then given vertical slots clear of each
+  // other and of the floating notices and bar (in plate pixels), once per
+  // layout. Runs before paint, so the first placement is never seen.
   React.useLayoutEffect(() => {
     if (!layout) return;
     const bar = document.querySelector(".actionBar");
@@ -58,14 +79,27 @@ export default function GroveScene({ g }) {
       const el = labelRefs.current[t.id];
       return { id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: el ? el.offsetWidth : 140, h: el ? el.offsetHeight : 42 };
     });
-    setLabels(placeLabels(items, { minX: 0, maxX: layout.width, minY, maxY }));
+    labelItems.current = items;
+    labelSlots.current = placeLabels(items, { minX: 0, maxX: layout.width, minY, maxY });
+    lastPos.current = {};
+    shownRef.current = new Set();
+    placeForScroll();
   }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On open: centred on the first copy of the plate, where the first trees
-  // stand, set instantly before paint. Then, if a tree was just planted or
-  // just grew, pan to it so the moment is on screen. That pan follows
-  // .noscroll's scroll-behavior in theme.js: smooth, or instant under the OS
-  // reduced-motion setting.
+  // Scrolling re-places the labels at most once a frame.
+  function onScroll() {
+    updateScrollState();
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => { frame.current = 0; placeForScroll(); });
+  }
+  React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  // On open, set instantly before paint: on a phone, centred on the first
+  // tree, so the second and third peek in at the edges as a cue to swipe;
+  // on a wider screen, centred on the first copy of the plate. Then, if a
+  // tree was just planted or just grew, pan to it so the moment is on
+  // screen. That pan follows .noscroll's scroll-behavior in theme.js:
+  // smooth, or instant under the OS reduced-motion setting.
   React.useLayoutEffect(() => {
     const el = treeRowRef.current;
     if (!el || !layout) return;
@@ -73,12 +107,14 @@ export default function GroveScene({ g }) {
       opened.current = true;
       const prev = el.style.scrollBehavior;
       el.style.scrollBehavior = "auto";
-      el.scrollLeft = Math.max(0, (layout.tileW - el.clientWidth) / 2);
+      const first = layout.trees[0];
+      el.scrollLeft = Math.max(0, view.vw < 600 && first ? first.footX - el.clientWidth / 2 : (layout.tileW - el.clientWidth) / 2);
       el.style.scrollBehavior = prev;
       const focus = layout.trees.find((t) => justPlantedIds.includes(t.id)) || layout.trees.find((t) => grewIds.includes(t.id));
       if (focus) el.scrollTo({ left: Math.max(0, focus.footX - el.clientWidth / 2) });
     }
     updateScrollState();
+    placeForScroll();
   }, [layoutKey, updateScrollState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // No explicit `behavior` here on purpose: `.noscroll`'s scroll-behavior in
@@ -94,7 +130,7 @@ export default function GroveScene({ g }) {
   return (
     <div className="scene">
       {layout && (
-        <div ref={treeRowRef} onScroll={updateScrollState} className="sceneScroller noscroll">
+        <div ref={treeRowRef} onScroll={onScroll} className="sceneScroller noscroll">
           <div className="scenePlates" style={{ width: layout.width, height: plate.h, top: offsetTop }}>
             {/* Each copy shows its window of the plate; odd copies are mirrored. */}
             {Array.from({ length: layout.tiles }, (_, k) => (
@@ -111,7 +147,8 @@ export default function GroveScene({ g }) {
                   key={c.id}
                   t={t}
                   c={c}
-                  label={labels[c.id]}
+                  label={labels.pos[c.id]}
+                  labelShown={labels.shown.has(c.id)}
                   labelRef={(el) => { labelRefs.current[c.id] = el; }}
                   animClass={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""}
                   delay={delay}

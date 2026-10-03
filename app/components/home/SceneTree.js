@@ -10,7 +10,7 @@ import { stageName } from "../../lib/growth";
 // transform of its own, so the shadow, the tree and the label each layer
 // against the whole scene: every label above every tree, nearer trees over
 // farther ones. The planting and growing animations run on the image alone.
-export default function SceneTree({ t, c, label, labelRef, animClass, delay, onOpen }) {
+export default function SceneTree({ t, c, label, labelShown, labelRef, animClass, delay, onOpen }) {
   const sw = Math.max(18, t.w * 0.62);
   const sh = Math.max(6, t.w * 0.13);
   // The plate is lit from the upper left, so shadows fall a little to the
@@ -31,7 +31,7 @@ export default function SceneTree({ t, c, label, labelRef, animClass, delay, onO
         className={animClass ? `sceneTreeImg ${animClass}` : "sceneTreeImg"}
         style={{ zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
       />
-      <span ref={labelRef} className="treeLabelPin" style={{ left: pos.x - t.left, top: pos.y - t.top, zIndex: 1000 + t.z }}>
+      <span ref={labelRef} className={labelShown ? "treeLabelPin" : "treeLabelPin isHidden"} aria-hidden={labelShown ? undefined : true} style={{ left: pos.x - t.left, top: pos.y - t.top, zIndex: 1000 + t.z }}>
         <span className="treeLabelText">
           <span className="treeLabel">{c.name}</span>
           <span className="treeLabelStage">{stageName(c.days)}</span>

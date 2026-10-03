@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ANCHORS, FULL_HEIGHT, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
+import { ANCHORS, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 
 const trees = (n, days = () => 3) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: days(i), mastery: 0 }));
@@ -117,3 +117,83 @@ test("a full ten-tree scene lays out without overlapping labels", () => {
     noOverlap(items.map((it) => ({ ...pos[it.id], w: it.w, h: it.h })));
   }
 });
+
+// A ten-tree scene at a phone size, its slots decided once, as GroveScene does.
+function phoneScene(vw, vh) {
+  const { w, h } = plateSize(vw, vh);
+  const { width, trees: placed } = layoutScene(trees(10, (i) => i % 8), w, h);
+  const items = placed.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: 150, h: 44 }));
+  const slots = placeLabels(items, { minX: 0, maxX: width, minY: 140, maxY: h - 140 });
+  return { width, items, slots };
+}
+
+// Pans across the whole scene a few pixels at a time, carrying the shown set
+// from one frame to the next as the component does.
+function sweep(vw, vh, onFrame) {
+  const { width, items, slots } = phoneScene(vw, vh);
+  let shown = new Set();
+  for (let sx = 0; sx <= width - vw; sx += 7) {
+    const res = panLabels(items, slots, { sx, vw }, shown);
+    onFrame(res, { sx, items, slots, before: shown });
+    shown = res.shown;
+  }
+}
+
+test("panning never moves a label out of its vertical slot", () => {
+  for (const [vw, vh] of [[375, 844], [320, 844]]) {
+    sweep(vw, vh, ({ pos }, { slots }) => {
+      for (const id of Object.keys(pos)) assert.equal(pos[id].y, slots[id].y);
+    });
+  }
+});
+
+test("shown labels sit inside the window, 8px clear, and never overlap", () => {
+  for (const [vw, vh] of [[375, 844], [320, 844]]) {
+    sweep(vw, vh, ({ pos, shown }, { sx, items }) => {
+      const rects = items.filter((it) => shown.has(it.id)).map((it) => ({ ...pos[it.id], w: it.w, h: it.h }));
+      for (const r of rects) assert.ok(r.x >= sx + LABEL_EDGE - 1e-9 && r.x + r.w <= sx + vw - LABEL_EDGE + 1e-9);
+      noOverlap(rects);
+      // A shown label's tree always has its foot in the window.
+      for (const it of items) if (shown.has(it.id)) assert.ok(it.footX >= sx && it.footX <= sx + vw);
+    });
+  }
+});
+
+test("a hidden label shows only once its foot is 12px inside", () => {
+  const items = [{ id: "a", footX: 100, footY: 300, top: 200, w: 120, h: 40 }];
+  const slots = { a: { x: 40, y: 306 } };
+  // The foot is 5px inside the right edge: not yet.
+  assert.equal(panLabels(items, slots, { sx: -295, vw: 400 }).shown.has("a"), false);
+  // Exactly LABEL_ENTER inside: shows.
+  assert.equal(panLabels(items, slots, { sx: 100 + LABEL_ENTER - 400, vw: 400 }).shown.has("a"), true);
+  // Same from the left edge.
+  assert.equal(panLabels(items, slots, { sx: 95, vw: 400 }).shown.has("a"), false);
+  assert.equal(panLabels(items, slots, { sx: 100 - LABEL_ENTER, vw: 400 }).shown.has("a"), true);
+});
+
+test("a shown label hides only once its foot leaves the window", () => {
+  const items = [{ id: "a", footX: 100, footY: 300, top: 200, w: 120, h: 40 }];
+  const slots = { a: { x: 40, y: 306 } };
+  const was = new Set(["a"]);
+  // 5px and 0px from the edge: still shown, and clamped inside.
+  const near = panLabels(items, slots, { sx: 95, vw: 400 }, was);
+  assert.equal(near.shown.has("a"), true);
+  assert.equal(near.pos.a.x, 95 + LABEL_EDGE);
+  assert.equal(panLabels(items, slots, { sx: 100, vw: 400 }, was).shown.has("a"), true);
+  // One pixel past: hidden.
+  assert.equal(panLabels(items, slots, { sx: 101, vw: 400 }, was).shown.has("a"), false);
+});
+
+test("where clamped labels collide, the tree further back loses its label", () => {
+  const items = [
+    { id: "front", footX: 20, footY: 400, top: 200, w: 140, h: 40 },
+    { id: "back", footX: 60, footY: 300, top: 150, w: 140, h: 40 },
+  ];
+  // Both slots on the same line, so clamping pushes them together.
+  const slots = { front: { x: 0, y: 350 }, back: { x: 0, y: 350 } };
+  const res = panLabels(items, slots, { sx: 0, vw: 400 }, new Set(["front", "back"]));
+  assert.equal(res.shown.has("front"), true);
+  assert.equal(res.shown.has("back"), false);
+  assert.equal(res.pos.back.y, 350);
+});
+

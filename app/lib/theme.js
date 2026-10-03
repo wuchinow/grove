@@ -51,6 +51,11 @@ export const FONTS = `
   box-shadow:0 5px 18px rgba(33,65,37,.16);
   text-align:left; color:#234332; cursor:pointer;
 }
+/* A label whose tree's trunk has left the screen fades out where it was; it
+   doesn't move. Visibility flips after the fade so it stops taking taps. */
+.treeLabelPin{ transition:opacity .32s ease, visibility 0s linear 0s }
+.treeLabelPin.isHidden{ opacity:0; visibility:hidden; pointer-events:none; transition:opacity .32s ease, visibility 0s linear .32s }
+@media (prefers-reduced-motion: reduce){ .treeLabelPin, .treeLabelPin.isHidden{ transition:none } }
 .treeLabelText{ display:block; min-width:0 }
 .treeLabel{
   font-size:12.5px; font-weight:500; line-height:1.25; overflow:hidden;

@@ -77,15 +77,16 @@ export function layoutScene(concepts, plateW, plateH) {
 const GAP = 6;
 const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4;
 
+// Each label's vertical slot, decided once per layout for the whole scene.
 // Places each label (measured size `w` x `h`) next to its tree, front trees
 // first: under the foot if that's free and inside the band, otherwise above
 // the canopy, otherwise the nearest free step below or above. `band` is the
 // visible strip between the floating header and the bar, in plate pixels,
-// plus the plate's horizontal extent. Returns { [id]: { x, y } }.
+// plus the horizontal limits. Returns { [id]: { x, y } }.
 export function placeLabels(items, band) {
   const placed = [];
   const out = {};
-  const clampX = (x, w) => Math.min(Math.max(x, band.minX + 4), band.maxX - w - 4);
+  const clampX = (x, w) => Math.min(Math.max(x, band.minX), band.maxX - w);
   const inBand = (r) => r.y >= band.minY && r.y + r.h <= band.maxY;
   for (const it of [...items].sort((a, b) => b.footY - a.footY || a.footX - b.footX)) {
     const x = clampX(it.footX - it.w / 2, it.w);
@@ -106,4 +107,34 @@ export function placeLabels(items, band) {
     out[it.id] = { x: pick.x, y: pick.y };
   }
   return out;
+}
+
+// While the scene pans, labels keep the slot placeLabels gave them and only
+// move sideways: a label shows while its tree's foot is on screen, clamped
+// LABEL_EDGE inside either edge. To keep one from flickering at the edge, a
+// hidden label shows only once the foot is LABEL_ENTER inside the window,
+// and a shown one hides only once the foot has left it. Where two clamped
+// labels would overlap, the tree further back (smaller foot y) loses its
+// label; nothing moves vertically. `view` is { sx: scrollLeft, vw: width }
+// in plate pixels. Returns every label's clamped position and the set shown.
+export const LABEL_EDGE = 8;
+export const LABEL_ENTER = 12;
+
+export function panLabels(items, slots, view, shownBefore = new Set()) {
+  const { sx, vw } = view;
+  const left = sx + LABEL_EDGE;
+  const right = sx + vw - LABEL_EDGE;
+  const pos = {};
+  const shown = new Set();
+  const accepted = [];
+  for (const it of [...items].sort((a, b) => b.footY - a.footY || a.footX - b.footX)) {
+    const margin = shownBefore.has(it.id) ? 0 : LABEL_ENTER;
+    const footIn = it.footX >= sx + margin && it.footX <= sx + vw - margin;
+    const r = { x: Math.min(Math.max(it.footX - it.w / 2, left), right - it.w), y: slots[it.id].y, w: it.w, h: it.h };
+    pos[it.id] = { x: r.x, y: r.y };
+    if (!footIn || accepted.some((p) => overlaps(p, r))) continue;
+    accepted.push(r);
+    shown.add(it.id);
+  }
+  return { pos, shown };
 }
