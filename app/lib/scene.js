@@ -103,9 +103,9 @@ const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b
 // plus the horizontal limits. `obstacles` are rects ({ x, y, w, h, id }) no
 // label may cover except its own tree's: the portrait plate passes every
 // trunk base. With `beside` (the portrait plate, where nothing pans and the
-// meadow is crowded) a label never leaves its tree: it tries under the foot
-// and above the canopy, then one step further each way, each also nudged
-// left and right, and if none of those is free it stays under the foot,
+// meadow is crowded) a label never leaves its tree: it sits just under the
+// trunk base, nudged left or right if that's taken, and if none of those is
+// free it stays under the foot,
 // where panLabels hides it rather than letting it drift across the scene.
 // Returns { [id]: { x, y, out } }.
 export function placeLabels(items, band, obstacles = [], { beside = false } = {}) {
@@ -120,8 +120,8 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
     const step = it.h + GAP;
     let candidates;
     if (beside) {
-      const xs = [0, -0.35, 0.35, -0.6, 0.6].map((k) => clampX(it.footX - it.w / 2 + k * it.w, it.w));
-      candidates = [below, above, below + step, above - step].flatMap((y) => xs.map((cx) => ({ x: cx, y, w: it.w, h: it.h })));
+      const xs = [0, -0.4, 0.4, -0.7, 0.7].map((k) => clampX(it.footX - it.w / 2 + k * it.w, it.w));
+      candidates = xs.map((cx) => ({ x: cx, y: below, w: it.w, h: it.h }));
     } else {
       const ys = [below, above];
       for (let k = 1; k <= 4; k++) ys.push(below + k * step, above - k * step);
@@ -140,7 +140,8 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
     placed.push(pick);
     // `out`: no slot fits between the notices and the bar (a tall label on a
     // short screen). panLabels hides it rather than show it under either.
-    out[it.id] = { x: pick.x, y: pick.y, out: !inBand(pick) };
+    // `held`: the sideways nudge is part of the slot (portrait); panLabels keeps it.
+    out[it.id] = { x: pick.x, y: pick.y, out: !inBand(pick), held: beside };
   }
   return out;
 }
@@ -167,7 +168,8 @@ export function panLabels(items, slots, view, shownBefore = new Set(), obstacles
   for (const it of [...items].sort((a, b) => b.footY - a.footY || a.footX - b.footX)) {
     const margin = shownBefore.has(it.id) ? 0 : LABEL_ENTER;
     const footIn = it.footX >= sx + margin && it.footX <= sx + vw - margin;
-    const r = { x: Math.min(Math.max(it.footX - it.w / 2, left), right - it.w), y: slots[it.id].y, w: it.w, h: it.h };
+    const wantX = slots[it.id].held ? slots[it.id].x : it.footX - it.w / 2;
+    const r = { x: Math.min(Math.max(wantX, left), right - it.w), y: slots[it.id].y, w: it.w, h: it.h };
     pos[it.id] = { x: r.x, y: r.y };
     if (!footIn || slots[it.id].out || accepted.some((p) => overlaps(p, r))) continue;
     // A label never covers another tree's trunk base (portrait plate).
@@ -221,20 +223,30 @@ export function openingMove(state, now) {
 // covers the screen (sides cropped on a narrow phone, top and bottom on a
 // squarer one), the scene is exactly as wide as the screen, and nothing pans.
 //
-// Twelve anchors, filled near-first up the hill: x and the foot's y as
-// fractions of the plate, depth as a scale. The first seven use the lower and
-// middle meadow; the last five keep left of the path that winds through the
-// upper meadow. x is drawn for a screen showing PORTRAIT.refWidth of the
-// plate's width (about a 375-wide phone); a narrower screen squeezes the
-// anchors toward the centre, and every tree is then clamped fully on screen.
+// Twelve anchors between about 25% and 75% of the plate's height: x and the
+// foot's y as fractions of the plate, depth as a scale. They frame the meadow
+// rather than stack up it: the near ones at the sides, farther ones in the
+// middle and up the hill, none directly in front of another, and the upper
+// ones left of the path. The fill order spreads a grove over the whole hill,
+// so any grove of three to seven has near, middle and far trees; eight to
+// twelve fill the gaps between. x is drawn for a screen showing
+// PORTRAIT.refWidth of the plate's width (about a 375-wide phone); a narrower
+// screen squeezes the anchors toward the centre, and every tree is then
+// clamped fully on screen.
 //
 // Neighbouring canopies may overlap. What the positions guarantee is that no
-// trunk base is covered by a nearer tree's trunk: rows in the same column are
-// further apart than a trunk is tall, and neighbouring rows sit in different
-// columns. scene.test.mjs checks it for every count, size and screen.
+// trunk base is covered by a nearer tree's trunk. scene.test.mjs checks it
+// for every count, size and screen.
 export const PORTRAIT = {
   // A near full-grown tree's height as a share of the plate's height.
-  fullHeight: 0.28,
+  fullHeight: 0.24,
+  // Each stage's share of full size. Higher at the bottom than the wide
+  // plate's STAGE_CURVE, so the youngest trees stay legible on a phone.
+  stageCurve: [0.2, 0.26, 0.33, 0.42, 0.54, 0.67, 0.83, 1],
+  // The plate is drawn a little darker and less saturated than it was
+  // painted, so the oaks stand out from the grass. Tuned by eye; the real fix
+  // for young trees blending in is in the art.
+  tone: { brightness: 0.84, saturation: 0.72 },
   refWidth: 0.778,
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
   shrinkPerTree: 0.035,
@@ -244,18 +256,18 @@ export const PORTRAIT = {
 };
 
 export const PORTRAIT_ANCHORS = [
-  { x: 0.5, y: 0.71, depth: 1 },      // near, centre
-  { x: 0.27, y: 0.655, depth: 0.92 }, // lower meadow, left
-  { x: 0.73, y: 0.635, depth: 0.9 },  // lower meadow, right
-  { x: 0.36, y: 0.54, depth: 0.8 },   // middle, left
-  { x: 0.64, y: 0.525, depth: 0.78 }, // middle, right
-  { x: 0.5, y: 0.47, depth: 0.7 },    // middle, centre
-  { x: 0.3, y: 0.44, depth: 0.66 },   // middle, left
-  { x: 0.42, y: 0.39, depth: 0.56 },  // upper meadow, left of the path
-  { x: 0.62, y: 0.37, depth: 0.5 },   // upper meadow, inside the path's bend
-  { x: 0.28, y: 0.34, depth: 0.44 },
-  { x: 0.46, y: 0.3, depth: 0.38 },
-  { x: 0.33, y: 0.255, depth: 0.3 },
+  { x: 0.22, y: 0.72, depth: 1 },      //  1 near, left
+  { x: 0.74, y: 0.5, depth: 0.67 },    //  2 middle, right
+  { x: 0.18, y: 0.27, depth: 0.3 },    //  3 far, left
+  { x: 0.78, y: 0.68, depth: 0.94 },   //  4 near, right
+  { x: 0.6, y: 0.585, depth: 0.8 },    //  5 middle, centre
+  { x: 0.44, y: 0.255, depth: 0.27 },  //  6 far, centre
+  { x: 0.42, y: 0.435, depth: 0.57 },  //  7 upper middle, left
+  { x: 0.32, y: 0.52, depth: 0.7 },    //  8 to 12: the gaps between
+  { x: 0.56, y: 0.395, depth: 0.52 },
+  { x: 0.34, y: 0.3, depth: 0.34 },
+  { x: 0.26, y: 0.37, depth: 0.46 },
+  { x: 0.48, y: 0.335, depth: 0.4 },
 ];
 
 // Up to seven trees are drawn at full scale; eight to twelve shrink gently so
@@ -335,7 +347,7 @@ export function layoutPortrait(concepts, vw, vh) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    const h = plateH * PORTRAIT.fullHeight * a.depth * STAGE_CURVE[stage] * scale;
+    const h = plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[stage] * scale;
     const w = (h * art.w) / art.h;
     // Squeezed toward the centre on a narrow screen, then held fully on it.
     const wanted = vw / 2 + (a.x - 0.5) * plateW * squeeze;
@@ -357,7 +369,7 @@ export function sceneLayout(concepts, vw, vh) {
     const s = Math.max(vw / P.w, vh / P.h);
     const plate = { w: P.w * s, h: P.h * s };
     const layout = layoutPortrait(concepts, vw, vh);
-    return { kind, src: P.src, plate, plateLeft: (vw - plate.w) / 2, offsetTop: Math.min(0, (vh - plate.h) * PORTRAIT.cropBias), pans: false, showStage: concepts.length <= PORTRAIT_ANCHORS.length, ...layout };
+    return { kind, src: P.src, plate, plateLeft: (vw - plate.w) / 2, offsetTop: Math.min(0, (vh - plate.h) * PORTRAIT.cropBias), pans: false, showStage: false, tone: PORTRAIT.tone, ...layout };
   }
   const plate = plateSize(vw, vh);
   const layout = layoutScene(concepts, plate.w, plate.h);

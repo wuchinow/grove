@@ -91,7 +91,7 @@ const noOverlap = (rects) => {
 
 test("a label goes under its tree when there's room", () => {
   const pos = placeLabels([{ id: "a", footX: 500, footY: 300, top: 150, w: 120, h: 40 }], { minX: 0, maxX: 1000, minY: 0, maxY: 800 });
-  assert.deepEqual(pos.a, { x: 440, y: 306, out: false });
+  assert.deepEqual(pos.a, { x: 440, y: 306, out: false, held: false });
 });
 
 test("a crowded label moves above its canopy, and none overlap", () => {
@@ -350,13 +350,33 @@ test("no portrait trunk base is covered by a nearer tree's trunk", () => {
   }
 });
 
-test("portrait trees fill near-first, and one to seven use the lower and middle meadow", () => {
+test("portrait anchors use the hill from 25% to 75%, and any grove of three to seven spans it", () => {
   assert.equal(PORTRAIT_ANCHORS.length, 12);
-  for (let i = 1; i < PORTRAIT_ANCHORS.length; i++) assert.ok(PORTRAIT_ANCHORS[i].y < PORTRAIT_ANCHORS[i - 1].y, `anchor ${i + 1} isn't further up the hill`);
-  for (const a of PORTRAIT_ANCHORS.slice(0, 7)) assert.ok(a.y >= 0.42 && a.y <= 0.72, `anchor at ${a.y}`);
+  for (const a of PORTRAIT_ANCHORS) assert.ok(a.y >= 0.25 && a.y <= 0.75, `anchor at ${a.y}`);
+  const band = (a) => (a.y >= 0.6 ? "near" : a.y >= 0.4 ? "middle" : "far");
+  for (let n = 3; n <= 7; n++) {
+    assert.deepEqual([...new Set(PORTRAIT_ANCHORS.slice(0, n).map(band))].sort(), ["far", "middle", "near"], `${n} trees`);
+  }
+  // The near anchors frame the meadow from the sides.
+  assert.deepEqual(PORTRAIT_ANCHORS.filter((a) => a.y >= 0.65).map((a) => a.x).sort(), [0.22, 0.78]);
+  // No anchor directly in front of another: every pair is in a different column.
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) assert.ok(Math.abs(PORTRAIT_ANCHORS[i].x - PORTRAIT_ANCHORS[j].x) >= 0.02, `anchors ${i + 1} and ${j + 1} share a column`);
   const { trees: placed } = layoutPortrait(trees(7), 375, 844);
   const plateH = PLATES.portrait.h * Math.max(375 / PLATES.portrait.w, 844 / PLATES.portrait.h);
   placed.forEach((t, i) => assert.ok(Math.abs(t.footY - PORTRAIT_ANCHORS[i].y * plateH) < 1e-9));
+});
+
+test("the portrait stage curve keeps young trees legible and still rises every stage", () => {
+  const c = PORTRAIT.stageCurve;
+  assert.equal(c.length, 8);
+  assert.equal(c[7], 1);
+  for (let i = 1; i < 8; i++) assert.ok(c[i] > c[i - 1]);
+  for (let i = 0; i <= 3; i++) assert.ok(c[i] > STAGE_CURVE[i]);
+  const [t] = layoutPortrait(trees(1, () => 0), 375, 844).trees;
+  assert.ok(Math.abs(t.h - 844 * PORTRAIT.fullHeight * c[0]) < 1e-9);
+  assert.deepEqual(PORTRAIT.tone, { brightness: 0.84, saturation: 0.72 });
+  assert.deepEqual(sceneLayout(trees(3), 375, 844).tone, PORTRAIT.tone);
+  assert.equal(sceneLayout(trees(3), 1280, 800).tone, undefined);
 });
 
 test("a near full-grown portrait tree is within the agreed share of the plate", () => {
@@ -380,27 +400,36 @@ test("portrait scale follows the count", () => {
   assert.equal(layoutPortrait(trees(12), 375, 844).scale, portraitScale(12));
 });
 
-test("labels drop the stage line past twelve trees, on the portrait plate only", () => {
-  assert.equal(sceneLayout(trees(12), 375, 844).showStage, true);
-  assert.equal(sceneLayout(trees(13), 375, 844).showStage, false);
-  assert.equal(sceneLayout(trees(15), 375, 844).showStage, false);
+test("a portrait tag nudged clear of a nearer tag keeps its nudge and shows", () => {
+  const items = [
+    { id: "front", footX: 60, footY: 300, top: 250, w: 100, h: 22 },
+    { id: "back", footX: 150, footY: 290, top: 260, w: 100, h: 22 },
+  ];
+  const slots = placeLabels(items, { minX: 8, maxX: 367, minY: 100, maxY: 700 }, [], { beside: true });
+  assert.equal(slots.front.x, 10);
+  assert.ok(slots.back.x > 114, "the back tag wasn't nudged clear");
+  const { pos, shown } = panLabels(items, slots, { sx: 0, vw: 375 });
+  assert.equal(shown.has("front") && shown.has("back"), true);
+  assert.equal(pos.back.x, slots.back.x);
+});
+
+test("portrait tags are the name alone; the wide plate keeps the stage line", () => {
+  for (const n of [1, 7, 12, 15]) assert.equal(sceneLayout(trees(n), 375, 844).showStage, false);
   assert.equal(sceneLayout(trees(15), 1280, 800).showStage, true);
 });
 
 test("portrait labels stay on screen, clear of each other and of every other trunk base", () => {
   for (const [vw, vh] of [[320, 844], [375, 844]]) for (const n of [3, 7, 12, 15]) for (const days of Object.values(SIZES)) {
     const s = sceneLayout(trees(n, days), vw, vh);
-    const items = s.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: 130, h: s.showStage ? 42 : 28 }));
+    const items = s.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: 96, h: 22 }));
     const bases = s.trees.map(trunkBase);
     const slots = placeLabels(items, { minX: 8, maxX: vw - 8, minY: 130, maxY: vh - 140 }, bases, { beside: true });
     const { pos, shown } = panLabels(items, slots, { sx: 0, vw }, new Set(), bases);
-    // A label stays beside its own tree: under the foot or above the canopy,
-    // at most one step further, and at most 0.6 of its width to either side.
+    // A tag sits just under its own trunk base, at most 0.7 of its width to either side.
     for (const it of items) {
       const p = pos[it.id];
-      const step = it.h + 6;
-      assert.ok([it.footY + 6, it.top - it.h - 6, it.footY + 6 + step, it.top - it.h - 6 - step].some((y) => Math.abs(p.y - y) < 1e-9), `${vw}, ${n} trees: a label drifted vertically`);
-      assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 0.6 * it.w + it.w / 2, `${vw}, ${n} trees: a label drifted sideways`);
+      assert.ok(Math.abs(p.y - (it.footY + 6)) < 1e-9, `${vw}, ${n} trees: a tag left its trunk base`);
+      assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 0.7 * it.w + it.w / 2, `${vw}, ${n} trees: a tag drifted sideways`);
     }
     const rects = items.filter((it) => shown.has(it.id)).map((it) => ({ id: it.id, ...pos[it.id], w: it.w, h: it.h }));
     assert.ok(rects.length >= 1, `${vw}, ${n} trees: no label shown`);

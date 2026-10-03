@@ -163,7 +163,7 @@ export default function GroveScene({ g }) {
             {Array.from({ length: layout.tiles }, (_, k) => (
               // A pixel of overlap, so a fractional copy width never leaves a hairline between copies.
               <div key={k} className="scenePlateWindow" style={{ left: Math.floor(k * layout.tileW), width: Math.ceil(layout.tileW) + 1, height: plate.h, transform: k % 2 ? "scaleX(-1)" : undefined }}>
-                <img className="scenePlate" src={layout.src} alt="" width={Math.round(plate.w)} height={Math.round(plate.h)} draggable={false} style={{ left: layout.plateLeft, width: plate.w, height: plate.h }} />
+                <img className="scenePlate" src={layout.src} alt="" width={Math.round(plate.w)} height={Math.round(plate.h)} draggable={false} style={{ left: layout.plateLeft, width: plate.w, height: plate.h, filter: layout.tone ? `saturate(${layout.tone.saturation}) brightness(${layout.tone.brightness})` : undefined }} />
               </div>
             ))}
             {layout.trees.map((t, i) => {

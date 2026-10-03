@@ -38,7 +38,8 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
           <span className="treeLabel">{c.name}</span>
           {showStage && <span className="treeLabelStage">{stageName(c.days)}</span>}
         </span>
-        <Icon name="chevronRight" size={14} color="#687b64" strokeWidth={2.2} />
+        {/* The portrait plate's tag is the name alone: no stage line, no arrow. */}
+        {!portrait && <Icon name="chevronRight" size={14} color="#687b64" strokeWidth={2.2} />}
       </span>
     </button>
   );

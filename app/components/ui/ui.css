@@ -107,19 +107,20 @@
   background: radial-gradient(closest-side, rgba(28, 44, 20, 0.42), rgba(28, 44, 20, 0));
   pointer-events: none;
 }
-/* The portrait plate's grass is bright and close to the oaks' own green, so
-   each tree gets a soft dark edge and a deeper tone, and a darker ground
-   shadow, to stand clear of it. */
-.scene.portrait .sceneTreeImg {
-  filter: drop-shadow(0 1px 3px rgba(16, 30, 10, 0.6)) brightness(0.8) contrast(1.14) saturate(1.2);
-}
-/* Narrower labels on the portrait plate, so two fit side by side at 320. */
-.scene.portrait .treeLabelPin {
-  max-width: min(150px, 46vw);
-  padding: 6px 7px 6px 10px;
-}
+/* The portrait plate: a darker ground shadow on its brighter grass, and a
+   compact name-only tag under each trunk base instead of the full label. */
 .scene.portrait .sceneShadow {
   background: radial-gradient(closest-side, rgba(24, 40, 16, 0.55), rgba(24, 40, 16, 0));
+}
+.scene.portrait .treeLabelPin {
+  max-width: 112px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  box-shadow: 0 3px 10px rgba(33, 65, 37, 0.18);
+}
+.scene.portrait .treeLabel {
+  font-size: 11px;
+  line-height: 1.2;
 }
 .sceneFade {
   position: absolute;
