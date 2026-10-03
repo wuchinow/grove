@@ -5,8 +5,9 @@ import { treeArt } from "../../lib/scene";
 import { stageName } from "../../lib/growth";
 
 // One tree on the scene: its painted cut-out standing on its anchor, a soft
-// ground shadow, and its pinned label. All of it is one button, so tapping the
-// tree or its label opens the tree card. The button carries no z-index or
+// ground shadow, and its pinned label (on the portrait plate, a pin at the
+// trunk base with a small tag under it). All of it is one button, so tapping
+// the tree, its pin or its label opens the tree card. The button carries no z-index or
 // transform of its own, so the shadow, the tree and the label each layer
 // against the whole scene: every label above every tree, nearer trees over
 // farther ones. The planting and growing animations run on the image alone.
@@ -21,6 +22,18 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
   const fx = t.footX - t.left;
   const fy = t.footY - t.top;
   const pos = label || { x: t.footX - 70, y: t.footY + 6 };
+  // Portrait plate: a pin marks the trunk base and the tag sits under it.
+  // When the tag had to move aside, so the pin is no longer over it, a
+  // hairline runs from the pin to the tag's nearest top corner.
+  let lead = null;
+  if (portrait && labelShown && pos.w) {
+    const tx = Math.min(Math.max(t.footX, pos.x + 7), pos.x + pos.w - 7);
+    if (Math.abs(tx - t.footX) > 0.5) {
+      const dx = tx - t.footX;
+      const dy = pos.y - t.footY;
+      lead = { length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
+    }
+  }
   return (
     <button title={c.name} onClick={onOpen} className="sceneTree" data-foot={`${t.footX},${t.footY}`} data-art-foot={`${t.art.footX},${t.art.footY}`} style={{ left: t.left, top: t.top, width: t.w, height: t.h }}>
       <span className="sceneShadow" style={{ left: fx - sw / 2 + ox, top: fy - sh / 2, width: sw, height: sh, zIndex: t.z * 2 }} />
@@ -33,6 +46,8 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
         className={animClass ? `sceneTreeImg ${animClass}` : "sceneTreeImg"}
         style={{ zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
       />
+      {lead && <span className="treeLead" style={{ left: fx, top: fy, width: lead.length, transform: `rotate(${lead.angle}rad)`, zIndex: 999 }} />}
+      {portrait && <span className="treePin" style={{ left: fx - 3.5, top: fy - 3.5, zIndex: 1000 + t.z }} />}
       <span ref={labelRef} className={labelShown ? "treeLabelPin" : "treeLabelPin isHidden"} aria-hidden={labelShown ? undefined : true} style={{ left: pos.x - t.left, top: pos.y - t.top, zIndex: 1000 + t.z }}>
         <span className="treeLabelText">
           <span className="treeLabel">{c.name}</span>

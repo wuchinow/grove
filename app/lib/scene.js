@@ -248,6 +248,14 @@ export const PORTRAIT = {
   // for young trees blending in is in the art.
   tone: { brightness: 0.84, saturation: 0.72 },
   refWidth: 0.778,
+  // Depth runs from 1 at the nearest anchor to this at the farthest: a
+  // narrow range, so far trees aren't specks.
+  farDepth: 0.45,
+  // No tree is drawn shorter than this on a 375-wide screen (the floor
+  // scales with the screen's width). Each stage's floor is a little higher
+  // than the last, so the stages still read in order where the floor applies.
+  minHeight: 28,
+  minHeightStep: 0.08,
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
   shrinkPerTree: 0.035,
   // Where the plate sits when a squarer screen crops it top and bottom:
@@ -257,17 +265,17 @@ export const PORTRAIT = {
 
 export const PORTRAIT_ANCHORS = [
   { x: 0.22, y: 0.72, depth: 1 },      //  1 near, left
-  { x: 0.74, y: 0.5, depth: 0.67 },    //  2 middle, right
-  { x: 0.18, y: 0.27, depth: 0.3 },    //  3 far, left
-  { x: 0.78, y: 0.68, depth: 0.94 },   //  4 near, right
-  { x: 0.6, y: 0.585, depth: 0.8 },    //  5 middle, centre
-  { x: 0.44, y: 0.255, depth: 0.27 },  //  6 far, centre
-  { x: 0.42, y: 0.435, depth: 0.57 },  //  7 upper middle, left
-  { x: 0.32, y: 0.52, depth: 0.7 },    //  8 to 12: the gaps between
-  { x: 0.56, y: 0.395, depth: 0.52 },
-  { x: 0.34, y: 0.3, depth: 0.34 },
-  { x: 0.26, y: 0.37, depth: 0.46 },
-  { x: 0.48, y: 0.335, depth: 0.4 },
+  { x: 0.74, y: 0.5, depth: 0.75 },    //  2 middle, right
+  { x: 0.18, y: 0.27, depth: 0.47 },   //  3 far, left
+  { x: 0.78, y: 0.68, depth: 0.95 },   //  4 near, right
+  { x: 0.6, y: 0.585, depth: 0.85 },   //  5 middle, centre
+  { x: 0.44, y: 0.255, depth: 0.45 },  //  6 far, centre
+  { x: 0.42, y: 0.435, depth: 0.68 },  //  7 upper middle, left
+  { x: 0.32, y: 0.52, depth: 0.77 },   //  8 to 12: the gaps between
+  { x: 0.56, y: 0.395, depth: 0.64 },
+  { x: 0.34, y: 0.3, depth: 0.5 },
+  { x: 0.26, y: 0.37, depth: 0.59 },
+  { x: 0.48, y: 0.335, depth: 0.55 },
 ];
 
 // Up to seven trees are drawn at full scale; eight to twelve shrink gently so
@@ -288,7 +296,21 @@ function pathLeft(y) {
   if (y >= 0.27) return 0.56 + ((y - 0.27) / 0.09) * 0.31;
   return 0.56 + ((0.27 - y) / 0.06) * 0.18;
 }
-const depthAt = (y) => Math.min(1, Math.max(0.3, 0.3 + ((y - 0.255) / (0.71 - 0.255)) * 0.7));
+const depthAt = (y) => Math.min(1, Math.max(PORTRAIT.farDepth, PORTRAIT.farDepth + ((y - 0.255) / (0.71 - 0.255)) * (1 - PORTRAIT.farDepth)));
+
+// The spread order for a list of spots: one from the near third of the hill
+// they cover, one from the middle, one from the far, and round again, so a
+// grove uses the whole hill as it fills.
+function spread(spots) {
+  const ys = spots.map((p) => p.y);
+  const lo = Math.min(...ys);
+  const span = Math.max(...ys) - lo || 1;
+  const bands = [[], [], []];
+  for (const p of spots) bands[p.y > lo + (span * 2) / 3 ? 0 : p.y > lo + span / 3 ? 1 : 2].push(p);
+  const out = [];
+  for (let n = 0; out.length < spots.length; n++) for (const b of bands) if (n < b.length) out.push(b[n]);
+  return out;
+}
 
 // Where n trees stand and at what scale. Up to twelve: the tuned anchors.
 // Past twelve there are no more tuned anchors, so the spots come from a
@@ -296,7 +318,8 @@ const depthAt = (y) => Math.min(1, Math.max(0.3, 0.3 + ((y - 0.255) / (0.71 - 0.
 // between three columns and two so neighbouring rows never share a column,
 // each row a little more than a trunk's height above the last, and nothing
 // right of the path in the upper meadow. If the lattice can't hold them all,
-// the scale steps down until it can.
+// the scale steps down until it can. The spots are handed out in the same
+// spread order as the tuned anchors.
 export function portraitSpots(n) {
   let scale = portraitScale(n);
   if (n <= PORTRAIT_ANCHORS.length) return { scale, spots: PORTRAIT_ANCHORS.slice(0, n) };
@@ -309,7 +332,7 @@ export function portraitSpots(n) {
       for (const x of xs) if (spots.length < n) spots.push({ x, y, depth });
       y -= 0.44 * PORTRAIT.fullHeight * depth * scale;
     }
-    if (spots.length >= n || scale < 0.2) return { scale, spots };
+    if (spots.length >= n || scale < 0.2) return { scale, spots: spread(spots) };
     scale *= 0.94;
   }
 }
@@ -347,7 +370,8 @@ export function layoutPortrait(concepts, vw, vh) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    const h = plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[stage] * scale;
+    const floor = PORTRAIT.minHeight * (vw / 375) * (1 + PORTRAIT.minHeightStep * stage);
+    const h = Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[stage] * scale, floor);
     const w = (h * art.w) / art.h;
     // Squeezed toward the centre on a narrow screen, then held fully on it.
     const wanted = vw / 2 + (a.x - 0.5) * plateW * squeeze;

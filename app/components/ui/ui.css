@@ -118,6 +118,24 @@
   border-radius: 9px;
   box-shadow: 0 3px 10px rgba(33, 65, 37, 0.18);
 }
+/* The pin at a trunk base, and the hairline to a tag that had to move aside. */
+.treePin {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: #fafcf0;
+  border: 1.5px solid #1b3c30;
+  box-shadow: 0 1px 3px rgba(20, 36, 14, 0.35);
+}
+.treeLead {
+  position: absolute;
+  height: 1px;
+  background: rgba(27, 60, 48, 0.75);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
 .scene.portrait .treeLabel {
   font-size: 11px;
   line-height: 1.2;

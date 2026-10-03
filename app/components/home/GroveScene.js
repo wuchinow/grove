@@ -73,8 +73,9 @@ export default function GroveScene({ g }) {
     if (!el || !labelItems.current.length) return;
     const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current, labelObstacles.current);
     shownRef.current = res.shown;
+    const widths = Object.fromEntries(labelItems.current.map((it) => [it.id, it.w]));
     for (const id of Object.keys(res.pos)) {
-      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = res.pos[id];
+      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = { ...res.pos[id], w: widths[id] };
     }
     setLabels({ pos: { ...lastPos.current }, shown: res.shown });
   }, []);
@@ -86,7 +87,8 @@ export default function GroveScene({ g }) {
     if (!layout) return;
     const bar = document.querySelector(".actionBar");
     const stack = document.querySelector(".sceneTopStack");
-    const minY = (stack ? stack.getBoundingClientRect().bottom : 120) + 8 - offsetTop;
+    // Labels keep clear of the notices: 8px on the wide plate, 12 on the portrait one.
+    const minY = (stack ? stack.getBoundingClientRect().bottom : 120) + (portrait ? 12 : 8) - offsetTop;
     const maxY = (bar ? bar.getBoundingClientRect().top : view.vh) - 8 - offsetTop;
     const items = layout.trees.map((t) => {
       const el = labelRefs.current[t.id];

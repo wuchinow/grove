@@ -413,6 +413,40 @@ test("a portrait tag nudged clear of a nearer tag keeps its nudge and shows", ()
   assert.equal(pos.back.x, slots.back.x);
 });
 
+test("portrait depth runs from 1 to 0.45, in the same order as before", () => {
+  const depths = PORTRAIT_ANCHORS.map((a) => a.depth);
+  assert.equal(Math.max(...depths), 1);
+  assert.equal(Math.min(...depths), PORTRAIT.farDepth);
+  assert.equal(PORTRAIT.farDepth, 0.45);
+  // Nearer anchors (larger y) are never smaller than farther ones.
+  const byY = [...PORTRAIT_ANCHORS].sort((p, q) => q.y - p.y);
+  for (let i = 1; i < byY.length; i++) assert.ok(byY[i].depth <= byY[i - 1].depth, `depth order breaks at y ${byY[i].y}`);
+});
+
+test("no portrait tree is drawn under the floor, and stages still read in order at every anchor", () => {
+  for (const [vw, vh] of [[375, 844], [320, 844], [430, 932]]) for (const n of [1, 3, 7, 12, 15, 20]) {
+    const floor = PORTRAIT.minHeight * (vw / 375);
+    const byStage = Array.from({ length: 8 }, (_, stage) => layoutPortrait(trees(n, () => stage), vw, vh).trees);
+    for (let i = 0; i < n; i++) {
+      assert.ok(byStage[0][i].h >= floor - 1e-9, `${vw}, ${n} trees: tree ${i} is ${byStage[0][i].h}px`);
+      for (let stage = 1; stage < 8; stage++) assert.ok(byStage[stage][i].h > byStage[stage - 1][i].h, `${vw}, ${n} trees, anchor ${i}: stage ${stage} isn't taller than ${stage - 1}`);
+    }
+  }
+  assert.equal(PORTRAIT.minHeight, 28);
+});
+
+test("past twelve trees the generated spots are handed out in spread order", () => {
+  for (const n of [13, 15, 20, 30]) {
+    const { spots } = portraitSpots(n);
+    assert.equal(spots.length, n);
+    const ys = spots.map((s) => s.y), lo = Math.min(...ys), hi = Math.max(...ys);
+    assert.ok(hi >= 0.7 && lo <= 0.4, `${n} trees use ${lo}..${hi} of the hill`);
+    const band = (s) => (s.y > lo + ((hi - lo) * 2) / 3 ? "near" : s.y > lo + (hi - lo) / 3 ? "middle" : "far");
+    for (let k = 3; k <= 7; k++) assert.deepEqual([...new Set(spots.slice(0, k).map(band))].sort(), ["far", "middle", "near"], `${n} trees, first ${k}`);
+    for (const s of spots) assert.ok(s.depth >= PORTRAIT.farDepth && s.depth <= 1);
+  }
+});
+
 test("portrait tags are the name alone; the wide plate keeps the stage line", () => {
   for (const n of [1, 7, 12, 15]) assert.equal(sceneLayout(trees(n), 375, 844).showStage, false);
   assert.equal(sceneLayout(trees(15), 1280, 800).showStage, true);
