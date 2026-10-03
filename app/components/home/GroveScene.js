@@ -92,7 +92,7 @@ export default function GroveScene({ g }) {
     const maxY = (bar ? bar.getBoundingClientRect().top : view.vh) - 8 - offsetTop;
     const items = layout.trees.map((t) => {
       const el = labelRefs.current[t.id];
-      return { id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: el ? el.offsetWidth : 140, h: el ? el.offsetHeight : 42 };
+      return { id: t.id, footX: t.footX, footY: t.footY, top: t.top, lean: t.side || 0, w: el ? el.offsetWidth : 140, h: el ? el.offsetHeight : 42 };
     });
     labelItems.current = items;
     // On the portrait plate nothing pans, so the slots are clamped to the

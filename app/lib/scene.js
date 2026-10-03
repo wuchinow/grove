@@ -15,6 +15,7 @@
 // (REPEAT), so copies meet at bushes and path, never as a mirrored V of trunk.
 import { stageOf } from "./growth.js";
 import { SCENE_ART } from "./scene-art.js";
+import { PORTRAIT_PATH } from "./scene-path.js";
 
 export const PLATES = {
   wide: { src: "/scenes/peter/meadow.webp", w: 1664, h: 928 },
@@ -106,6 +107,8 @@ export function layoutScene(concepts, plateW, plateH) {
 }
 
 const GAP = 6;
+// How far a leaning tag's near end reaches past its pin.
+const LABEL_LEAN = 10;
 const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4;
 
 // Each label's vertical slot, decided once per layout for the whole scene.
@@ -133,8 +136,16 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
     const step = it.h + GAP;
     let candidates;
     if (beside) {
-      const xs = [0, -0.4, 0.4, -0.7, 0.7].map((k) => clampX(it.footX - it.w / 2 + k * it.w, it.w));
-      candidates = xs.map((cx) => ({ x: cx, y: below, w: it.w, h: it.h }));
+      // A tag leans away from the path (`lean`: -1 left, 1 right), so it sits
+      // on its tree's side with its near end just past the pin; if that's
+      // taken it moves further out, then tries centred and the other side.
+      const lean = it.lean || 0;
+      const leaned = lean < 0 ? it.footX + LABEL_LEAN - it.w : lean > 0 ? it.footX - LABEL_LEAN : it.footX - it.w / 2;
+      const centred = it.footX - it.w / 2;
+      const xs = lean
+        ? [leaned, leaned + lean * 0.3 * it.w, centred, leaned + lean * 0.6 * it.w, centred - lean * 0.4 * it.w]
+        : [0, -0.4, 0.4, -0.7, 0.7].map((k) => centred + k * it.w);
+      candidates = xs.map((cx) => ({ x: clampX(cx, it.w), y: below, w: it.w, h: it.h }));
     } else {
       const ys = [below, above];
       for (let k = 1; k <= 4; k++) ys.push(below + k * step, above - k * step);
@@ -236,20 +247,22 @@ export function openingMove(state, now) {
 // covers the screen (sides cropped on a narrow phone, top and bottom on a
 // squarer one), the scene is exactly as wide as the screen, and nothing pans.
 //
-// Twelve anchors between about 25% and 75% of the plate's height: x and the
-// foot's y as fractions of the plate, depth as a scale. They frame the meadow
-// rather than stack up it: the near ones at the sides, farther ones in the
-// middle and up the hill, none directly in front of another, and the upper
-// ones left of the path. The fill order spreads a grove over the whole hill,
-// so any grove of three to seven has near, middle and far trees; eight to
-// twelve fill the gaps between. x is drawn for a screen showing
-// PORTRAIT.refWidth of the plate's width (about a 375-wide phone); a narrower
-// screen squeezes the anchors toward the centre, and every tree is then
-// clamped fully on screen.
+// One path winds up through the middle of the meadow, and the trees line it:
+// each anchor is a side of the path, a distance out from the path's edge at
+// that height (`off`, a fraction of the plate's width), and the foot's y as a
+// fraction of the plate's height. Depth follows y. The sides alternate as the
+// grove fills, and the fill order spreads it over the whole hill, so any grove
+// of three to seven has near, middle and far trees on both sides of the path.
+// The path itself comes from the plate (scene-path.js, traced by
+// scripts/cutout-trees.py).
 //
-// Neighbouring canopies may overlap. What the positions guarantee is that no
-// trunk base is covered by a nearer tree's trunk. scene.test.mjs checks it
-// for every count, size and screen.
+// No trunk base, and so no pin, ever stands on the path: every trunk base is
+// kept PORTRAIT.pathClear px (at 375, scaled with the screen) clear of it.
+// Canopies may overlap the path and each other. `off` is drawn for a screen
+// showing PORTRAIT.refWidth of the plate's width (about a 375-wide phone); a
+// narrower screen pulls the anchors in toward the path and draws the trees
+// that much smaller, and every tree is then held fully on screen.
+// scene.test.mjs checks all of it for every count, size and screen.
 export const PORTRAIT = {
   // A near full-grown tree's height as a share of the plate's height.
   fullHeight: 0.24,
@@ -260,7 +273,10 @@ export const PORTRAIT = {
   // painted, so the oaks stand out from the grass. Tuned by eye; the real fix
   // for young trees blending in is in the art.
   tone: { brightness: 0.84, saturation: 0.72 },
-  refWidth: 0.778,
+  refWidth: 0.777,
+  // Every trunk base keeps this many px clear of the path on a 375-wide
+  // screen (scaled with the screen's width).
+  pathClear: 14,
   // Depth runs from 1 at the nearest anchor to this at the farthest: a
   // narrow range, so far trees aren't specks.
   farDepth: 0.45,
@@ -290,20 +306,64 @@ export const PORTRAIT = {
   cropBias: 0.45,
 };
 
+// The path's left and right edge at a height, as fractions of the plate's
+// width. Where the path doubles back and a height crosses it twice, these
+// are the outer edges of the whole crossing.
+const PATH_YS = [...new Set(PORTRAIT_PATH.map((row) => row[0]))];
+const PATH_SPAN = new Map(PATH_YS.map((y) => {
+  const at = PORTRAIT_PATH.filter((row) => row[0] === y);
+  return [y, { left: Math.min(...at.map((row) => row[1])), right: Math.max(...at.map((row) => row[2])) }];
+}));
+export function pathEdges(y) {
+  if (y <= PATH_YS[0]) return PATH_SPAN.get(PATH_YS[0]);
+  for (let i = 1; i < PATH_YS.length; i++) {
+    if (y <= PATH_YS[i]) {
+      const a = PATH_SPAN.get(PATH_YS[i - 1]);
+      const b = PATH_SPAN.get(PATH_YS[i]);
+      const k = (y - PATH_YS[i - 1]) / (PATH_YS[i] - PATH_YS[i - 1]);
+      return { left: a.left + (b.left - a.left) * k, right: a.right + (b.right - a.right) * k };
+    }
+  }
+  return PATH_SPAN.get(PATH_YS[PATH_YS.length - 1]);
+}
+
+// How far a point is from the path, in px. `frame` says where the plate is
+// drawn: { plateLeft, plateW, plateH }, with y measured from the plate's top.
+export function pathDistance(x, y, frame) {
+  let best = Infinity;
+  for (const [ry, rl, rr] of PORTRAIT_PATH) {
+    const l = frame.plateLeft + rl * frame.plateW;
+    const r = frame.plateLeft + rr * frame.plateW;
+    const dx = x < l ? l - x : x > r ? x - r : 0;
+    const d = Math.hypot(dx, ry * frame.plateH - y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+const NEAR_Y = 0.77;
+const FAR_Y = 0.25;
+const depthAt = (y) => Math.min(1, Math.max(PORTRAIT.farDepth, PORTRAIT.farDepth + ((y - FAR_Y) / (NEAR_Y - FAR_Y)) * (1 - PORTRAIT.farDepth)));
+// An anchor with its depth and its x on the plate worked out.
+const resolve = (a) => {
+  const e = pathEdges(a.y);
+  return { ...a, depth: depthAt(a.y), x: a.side < 0 ? e.left - a.off : e.right + a.off };
+};
+
 export const PORTRAIT_ANCHORS = [
-  { x: 0.22, y: 0.72, depth: 1 },      //  1 near, left
-  { x: 0.74, y: 0.5, depth: 0.75 },    //  2 middle, right
-  { x: 0.18, y: 0.27, depth: 0.47 },   //  3 far, left
-  { x: 0.78, y: 0.68, depth: 0.95 },   //  4 near, right
-  { x: 0.6, y: 0.585, depth: 0.85 },   //  5 middle, centre
-  { x: 0.44, y: 0.255, depth: 0.45 },  //  6 far, centre
-  { x: 0.42, y: 0.435, depth: 0.68 },  //  7 upper middle, left
-  { x: 0.32, y: 0.52, depth: 0.77 },   //  8 to 12: the gaps between
-  { x: 0.56, y: 0.395, depth: 0.64 },
-  { x: 0.34, y: 0.3, depth: 0.5 },
-  { x: 0.26, y: 0.37, depth: 0.59 },
-  { x: 0.48, y: 0.335, depth: 0.55 },
-];
+  { side: -1, off: 0.16, y: 0.77 },   //  1 near, left of the path
+  { side: 1, off: 0.14, y: 0.47 },    //  2 middle, right
+  { side: -1, off: 0.18, y: 0.3 },    //  3 far, left
+  { side: 1, off: 0.13, y: 0.73 },    //  4 near, right
+  { side: -1, off: 0.16, y: 0.6 },    //  5 middle, left
+  { side: 1, off: 0.12, y: 0.275 },   //  6 far, right
+  { side: -1, off: 0.14, y: 0.4 },    //  7 upper middle, left
+  { side: 1, off: 0.24, y: 0.52 },    //  8 to 12: the gaps between
+  { side: -1, off: 0.34, y: 0.67 },
+  { side: 1, off: 0.3, y: 0.43 },
+  { side: -1, off: 0.42, y: 0.35 },
+  { side: 1, off: 0.16, y: 0.25 },
+].map(resolve);
 
 // Up to seven trees are drawn at full scale; eight to twelve shrink gently so
 // all twelve anchors read; past twelve the scale falls with the square root of
@@ -314,16 +374,6 @@ export function portraitScale(n) {
   if (n <= 12) return 1 - PORTRAIT.shrinkPerTree * (n - 7);
   return atTwelve * Math.sqrt(12 / n);
 }
-
-// The path's left edge at a given height, as a fraction of the plate width
-// (1 where the meadow is open edge to edge). Generated spots stay left of it.
-function pathLeft(y) {
-  if (y >= 0.46) return 1;
-  if (y >= 0.36) return 0.55 + ((0.45 - Math.min(y, 0.45)) / 0.09) * 0.32;
-  if (y >= 0.27) return 0.56 + ((y - 0.27) / 0.09) * 0.31;
-  return 0.56 + ((0.27 - y) / 0.06) * 0.18;
-}
-const depthAt = (y) => Math.min(1, Math.max(PORTRAIT.farDepth, PORTRAIT.farDepth + ((y - 0.255) / (0.71 - 0.255)) * (1 - PORTRAIT.farDepth)));
 
 // The spread order for a list of spots: one from the near third of the hill
 // they cover, one from the middle, one from the far, and round again, so a
@@ -340,24 +390,40 @@ function spread(spots) {
 }
 
 // Where n trees stand and at what scale. Up to twelve: the tuned anchors.
-// Past twelve there are no more tuned anchors, so the spots come from a
-// lattice over the same open ground: rows from near to far, alternating
-// between three columns and two so neighbouring rows never share a column,
-// each row a little more than a trunk's height above the last, and nothing
-// right of the path in the upper meadow. If the lattice can't hold them all,
-// the scale steps down until it can. The spots are handed out in the same
-// spread order as the tuned anchors.
+// Past twelve there are no more tuned anchors, so the spots are generated by
+// the same rules: rows from near to far, each a little more than a trunk's
+// height above the last, with a spot close to the path and one further out on
+// each side wherever the meadow has room, the sides taking turns. If the rows
+// can't hold them all, the scale steps down until they can. The spots are
+// handed out in the same spread order as the tuned anchors.
 export function portraitSpots(n) {
   let scale = portraitScale(n);
   if (n <= PORTRAIT_ANCHORS.length) return { scale, spots: PORTRAIT_ANCHORS.slice(0, n) };
   for (;;) {
     const spots = [];
-    let y = 0.71;
-    for (let row = 0; y >= 0.25 && spots.length < n; row++) {
-      const depth = depthAt(y);
-      const xs = (row % 2 ? [0.4, 0.6] : [0.5, 0.3, 0.7]).filter((x) => x <= pathLeft(y) - 0.07);
-      for (const x of xs) if (spots.length < n) spots.push({ x, y, depth });
-      y -= 0.44 * PORTRAIT.fullHeight * depth * scale;
+    let y = 0.77;
+    for (let row = 0; y >= FAR_Y && spots.length < n; row++) {
+      // The path's reach a little above and below this row too: where it
+      // bends, the trunk has to clear the bend, not only the row's own edge.
+      const near = [-0.04, -0.02, 0, 0.02, 0.04].map((dy) => pathEdges(y + dy));
+      const e = { left: Math.min(...near.map((p) => p.left)), right: Math.max(...near.map((p) => p.right)) };
+      const sides = row % 2 ? [1, -1] : [-1, 1];
+      // A spot is used only if a full-grown tree fits there on the narrowest
+      // phone: wholly inside the part of the plate that phone shows (about
+      // 0.17 to 0.83 of its width) with its trunk clear of the path.
+      const w = 0.38 * depthAt(y) * scale;
+      // The closest a trunk can stand to the path, then a second spot further
+      // out; alternate rows start a little further out, so neighbouring rows
+      // don't line up.
+      const closest = (0.04 + 0.08 * w) / 0.85 + (row % 2 ? 0.07 : 0);
+      for (const off of [closest, closest + 0.21]) for (const side of sides) {
+        const x = side < 0 ? e.left - off * 0.85 : e.right + off * 0.85;
+        const fits = side < 0 ? x - w / 2 >= 0.176 : x + w / 2 <= 0.824;
+        if (fits && spots.length < n) spots.push(resolve({ side, off, y }));
+      }
+      // At least a trunk's height up, and never less than the height floor
+      // makes a trunk on a small screen.
+      y -= Math.max(0.44 * PORTRAIT.fullHeight * depthAt(y) * scale, 0.03);
     }
     if (spots.length >= n || scale < 0.2) return { scale, spots: spread(spots) };
     scale *= 0.94;
@@ -390,32 +456,44 @@ export function layoutPortrait(concepts, vw, vh) {
   const s = Math.max(vw / P.w, vh / P.h);
   const plateW = P.w * s;
   const plateH = P.h * s;
+  const frame = { plateLeft: (vw - plateW) / 2, plateW, plateH };
   const { scale, spots } = portraitSpots(concepts.length);
+  // A screen showing less of the plate's width than the anchors were drawn
+  // for: the anchors pull in toward the path and the trees shrink to match.
   const squeeze = Math.min(1, vw / plateW / PORTRAIT.refWidth);
+  const clear = PORTRAIT.pathClear * (vw / 375);
   const trees = concepts.map((c, i) => {
     const a = spots[Math.min(i, spots.length - 1)];
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
     const floorFor = (st) => PORTRAIT.minHeight * (vw / 375) * (1 + PORTRAIT.minHeightStep * st);
-    const heightOf = (st) => Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[st] * scale, floorFor(st));
+    const heightOf = (st) => Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[st] * scale * squeeze, floorFor(st));
     let h = heightOf(stage);
     let w = (h * art.w) / art.h;
     if (stage === 0) {
       // By width: under the sprout's, and never under the minimum.
-      const raw = (plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[0] * scale * art.w) / art.h;
+      const raw = (plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[0] * scale * squeeze * art.w) / art.h;
       ({ w } = plantedSize(species, raw, heightOf(1)));
       w = Math.max(w, PORTRAIT.minPlantedWidth * (vw / 375));
       h = (w * art.h) / art.w;
     }
-    // Squeezed toward the centre on a narrow screen, then held fully on it.
-    const wanted = vw / 2 + (a.x - 0.5) * plateW * squeeze;
-    const footX = Math.min(Math.max(wanted, art.footX * w + 2), vw - (1 - art.footX) * w - 2);
     const footY = a.y * plateH;
-    return { id: c.id, stage, species, mirrored: false, depth: a.depth, footX, footY, w, h, left: footX - art.footX * w, top: footY - art.footY * h, art };
+    // Out from the path's edge on its side, then held fully on screen.
+    const e = pathEdges(a.y);
+    const edge = frame.plateLeft + (a.side < 0 ? e.left : e.right) * plateW;
+    let footX = edge + a.side * a.off * plateW * squeeze;
+    footX = Math.min(Math.max(footX, art.footX * w + 2), vw - (1 - art.footX) * w - 2);
+    // And never closer to the path than `clear`: the trunk base steps away
+    // from it until it is. (The path bends, so this is the distance to the
+    // path anywhere, not only at the trunk's own height.)
+    const half = Math.max(3, w * 0.08);
+    const gap = (x) => Math.min(pathDistance(x - half, footY, frame), pathDistance(x + half, footY, frame), pathDistance(x - half, footY - h * 0.12, frame), pathDistance(x + half, footY - h * 0.12, frame));
+    for (let n = 0; n < 200 && gap(footX) < clear; n++) footX += a.side * Math.max(0.5, vw / 750);
+    return { id: c.id, stage, species, mirrored: false, side: a.side, depth: a.depth, footX, footY, w, h, left: footX - art.footX * w, top: footY - art.footY * h, art };
   });
   [...trees].sort((p, q) => p.footY - q.footY || p.footX - q.footX).forEach((t, rank) => { t.z = rank + 1; });
-  return { tiles: 1, tileW: vw, width: vw, trees, scale };
+  return { tiles: 1, tileW: vw, width: vw, trees, scale, frame };
 }
 
 // The scene for a screen: which plate, how big it is drawn and where it sits,

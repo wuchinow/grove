@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLANTED_MAX_WIDTH, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
-  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
+  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, pathDistance, pathEdges, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
 } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
+import { PORTRAIT_PATH } from "./scene-path.js";
 
 const trees = (n, days = () => 3) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: days(i), mastery: 0 }));
 
@@ -351,20 +352,66 @@ test("no portrait trunk base is covered by a nearer tree's trunk", () => {
   }
 });
 
-test("portrait anchors use the hill from 25% to 75%, and any grove of three to seven spans it", () => {
+test("portrait anchors line both sides of the path and spread over the hill", () => {
   assert.equal(PORTRAIT_ANCHORS.length, 12);
-  for (const a of PORTRAIT_ANCHORS) assert.ok(a.y >= 0.25 && a.y <= 0.75, `anchor at ${a.y}`);
+  for (const a of PORTRAIT_ANCHORS) assert.ok(a.y >= 0.25 && a.y <= 0.78, `anchor at ${a.y}`);
+  // The near anchors sit low, now that the bar is one row.
+  assert.ok(Math.max(...PORTRAIT_ANCHORS.map((a) => a.y)) >= 0.74);
+  // Sides alternate as the grove fills, six on each side.
+  PORTRAIT_ANCHORS.forEach((a, i) => assert.equal(a.side, i % 2 ? 1 : -1, `anchor ${i + 1} is on the wrong side`));
+  // Each stands on its own side of the path, out from the path's edge.
+  for (const a of PORTRAIT_ANCHORS) {
+    const e = pathEdges(a.y);
+    assert.ok(a.side < 0 ? a.x < e.left : a.x > e.right, `anchor at y ${a.y} is not on its side of the path`);
+    assert.ok(a.x > 0.12 && a.x < 0.88);
+  }
   const band = (a) => (a.y >= 0.6 ? "near" : a.y >= 0.4 ? "middle" : "far");
   for (let n = 3; n <= 7; n++) {
     assert.deepEqual([...new Set(PORTRAIT_ANCHORS.slice(0, n).map(band))].sort(), ["far", "middle", "near"], `${n} trees`);
+    assert.deepEqual([...new Set(PORTRAIT_ANCHORS.slice(0, n).map((a) => a.side))].sort(), [-1, 1], `${n} trees are all on one side`);
   }
-  // The near anchors frame the meadow from the sides.
-  assert.deepEqual(PORTRAIT_ANCHORS.filter((a) => a.y >= 0.65).map((a) => a.x).sort(), [0.22, 0.78]);
-  // No anchor directly in front of another: every pair is in a different column.
-  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) assert.ok(Math.abs(PORTRAIT_ANCHORS[i].x - PORTRAIT_ANCHORS[j].x) >= 0.02, `anchors ${i + 1} and ${j + 1} share a column`);
   const { trees: placed } = layoutPortrait(trees(7), 375, 844);
   const plateH = PLATES.portrait.h * Math.max(375 / PLATES.portrait.w, 844 / PLATES.portrait.h);
   placed.forEach((t, i) => assert.ok(Math.abs(t.footY - PORTRAIT_ANCHORS[i].y * plateH) < 1e-9));
+});
+
+test("the traced path runs up the middle of the portrait plate", () => {
+  assert.ok(PORTRAIT_PATH.length > 100);
+  for (let i = 1; i < PORTRAIT_PATH.length; i++) assert.ok(PORTRAIT_PATH[i][0] >= PORTRAIT_PATH[i - 1][0]);
+  // Where it doubles back, a height has more than one crossing.
+  assert.ok(new Set(PORTRAIT_PATH.map((row) => row[0])).size < PORTRAIT_PATH.length);
+  for (const [y, left, right] of PORTRAIT_PATH) {
+    assert.ok(y > 0.15 && y < 0.95 && left < right, `row at ${y}`);
+    assert.ok(left > 0.35 && right < 0.82, `the path at ${y} is at ${left}..${right}`);
+  }
+  // On the path the distance is zero; well off it, it is the gap to the edge.
+  const frame = { plateLeft: 0, plateW: 1000, plateH: 1000 };
+  const [y, left, right] = PORTRAIT_PATH[80];
+  assert.equal(pathDistance(((left + right) / 2) * 1000, y * 1000, frame), 0);
+  assert.ok(pathDistance(100, 500, frame) > 200);
+  const e = pathEdges(y);
+  assert.ok(e.left <= left && e.right >= right);
+});
+
+test("no portrait trunk base or pin stands on the path: each is 14px clear at 375, scaled with the screen", () => {
+  assert.equal(PORTRAIT.pathClear, 14);
+  for (const [vw, vh] of PHONES) for (let n = 1; n <= 30; n++) for (const [name, days] of Object.entries(SIZES)) {
+    const { trees: placed, frame } = layoutPortrait(trees(n, days), vw, vh);
+    const clear = PORTRAIT.pathClear * (vw / 375) - 1e-6;
+    for (const t of placed) {
+      const b = trunkBase(t);
+      const d = Math.min(
+        pathDistance(t.footX, t.footY, frame),
+        pathDistance(b.x, b.y, frame), pathDistance(b.x + b.w, b.y, frame),
+        pathDistance(b.x, b.y + b.h, frame), pathDistance(b.x + b.w, b.y + b.h, frame),
+      );
+      assert.ok(d >= clear, `${vw}x${vh}, ${n} trees, ${name}: ${t.id} is ${d.toFixed(1)}px from the path`);
+      // And on its own side of it.
+      const e = pathEdges(t.footY / frame.plateH);
+      const x = (t.footX - frame.plateLeft) / frame.plateW;
+      assert.ok(t.side < 0 ? x < e.left : x > e.right, `${vw}x${vh}, ${n} trees, ${name}: ${t.id} crossed the path`);
+    }
+  }
 });
 
 test("the portrait stage curve keeps young trees legible and still rises every stage", () => {
@@ -469,7 +516,17 @@ test("past twelve trees the generated spots are handed out in spread order", () 
     const band = (s) => (s.y > lo + ((hi - lo) * 2) / 3 ? "near" : s.y > lo + (hi - lo) / 3 ? "middle" : "far");
     for (let k = 3; k <= 7; k++) assert.deepEqual([...new Set(spots.slice(0, k).map(band))].sort(), ["far", "middle", "near"], `${n} trees, first ${k}`);
     for (const s of spots) assert.ok(s.depth >= PORTRAIT.farDepth && s.depth <= 1);
+    // Both sides of the path are used.
+    assert.deepEqual([...new Set(spots.map((s) => s.side))].sort(), [-1, 1], `${n} trees are all on one side of the path`);
   }
+});
+
+test("a portrait tag leans away from the path, its near end just past the pin", () => {
+  const band = { minX: 8, maxX: 367, minY: 100, maxY: 700 };
+  const left = placeLabels([{ id: "l", footX: 150, footY: 300, top: 250, w: 100, h: 22, lean: -1 }], band, [], { beside: true });
+  assert.equal(left.l.x, 60);   // ends 10px right of the pin, the rest to the left
+  const right = placeLabels([{ id: "r", footX: 220, footY: 300, top: 250, w: 100, h: 22, lean: 1 }], band, [], { beside: true });
+  assert.equal(right.r.x, 210); // starts 10px left of the pin, the rest to the right
 });
 
 test("portrait tags are the name alone; the wide plate keeps the stage line", () => {
@@ -480,7 +537,7 @@ test("portrait tags are the name alone; the wide plate keeps the stage line", ()
 test("portrait labels stay on screen, clear of each other and of every other trunk base", () => {
   for (const [vw, vh] of [[320, 844], [375, 844]]) for (const n of [3, 7, 12, 15]) for (const days of Object.values(SIZES)) {
     const s = sceneLayout(trees(n, days), vw, vh);
-    const items = s.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: 96, h: 22 }));
+    const items = s.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, lean: t.side, w: 96, h: 22 }));
     const bases = s.trees.map(trunkBase);
     const slots = placeLabels(items, { minX: 8, maxX: vw - 8, minY: 130, maxY: vh - 140 }, bases, { beside: true });
     const { pos, shown } = panLabels(items, slots, { sx: 0, vw }, new Set(), bases);
@@ -488,7 +545,7 @@ test("portrait labels stay on screen, clear of each other and of every other tru
     for (const it of items) {
       const p = pos[it.id];
       assert.ok(Math.abs(p.y - (it.footY + 6)) < 1e-9, `${vw}, ${n} trees: a tag left its trunk base`);
-      assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 0.7 * it.w + it.w / 2, `${vw}, ${n} trees: a tag drifted sideways`);
+      assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 1.1 * it.w + it.w / 2, `${vw}, ${n} trees: a tag drifted sideways`);
     }
     const rects = items.filter((it) => shown.has(it.id)).map((it) => ({ id: it.id, ...pos[it.id], w: it.w, h: it.h }));
     assert.ok(rects.length >= 1, `${vw}, ${n} trees: no label shown`);

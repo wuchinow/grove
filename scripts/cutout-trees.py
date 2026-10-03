@@ -25,12 +25,15 @@ Source paintings stay outside the repo. Run it with the venv that has rembg:
     python3 -m venv ~/Developer/grove-art-venv
     ~/Developer/grove-art-venv/bin/pip install "rembg[cpu]" pillow
     ~/Developer/grove-art-venv/bin/python scripts/cutout-trees.py \\
-        --src ~/Desktop/"tree images" --species oak \\
+        --src ~/Desktop/grove --species oak \\
         --plate public/scenes/peter/meadow-empty.png \\
-        --plate ~/Desktop/"tree images/narrow grove.png"=public/scenes/peter/meadow-portrait.webp
+        --plate ~/Desktop/grove/"narrow grove path.png"=public/scenes/peter/meadow-portrait.webp \\
+        --path-plate ~/Desktop/grove/"narrow grove path.png"
 
 A plate is SRC (written beside itself as meadow.webp) or SRC=DEST, with DEST
-relative to the repo. --plates-only skips the trees.
+relative to the repo. --plates-only skips the trees. --path-plate traces the
+tan path on the portrait plate and writes app/lib/scene-path.js, which
+app/lib/scene.js uses to keep trees off the path.
 
 The first run downloads the isnet-general-use model (about 170MB) to ~/.u2net.
 """
@@ -183,13 +186,71 @@ def cut_stage(session, src, stage):
     return out, round(foot_x, 4), round(foot_y, 4)
 
 
+def trace_path(src):
+    """The path on the portrait plate, as rows of [y, left, right] in fractions
+    of the plate. The tan pixels (red well above green, blue high; grass has
+    little blue) that connect to the path at the bottom of the plate, where it
+    is widest: following the connection keeps out patches of sunlit grass.
+    Where the path doubles back, one height crosses it more than once and
+    gets a row for each crossing."""
+    from PIL import ImageFilter
+    im = Image.open(src).convert("RGB").filter(ImageFilter.GaussianBlur(2))
+    a = np.asarray(im).astype(int)
+    h, w, _ = a.shape
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    tan = (r > g + 28) & (b > 105) & (r > 150)
+    tan[:, : int(w * 0.08)] = False
+    tan[:, int(w * 0.93):] = False
+    # Flood fill on a quarter-size grid, from the widest run near the bottom.
+    q = 4
+    small = tan[: h // q * q, : w // q * q].reshape(h // q, q, w // q, q).mean((1, 3)) > 0.4
+    sy = int(h * 0.9) // q
+    xs = np.where(small[sy])[0]
+    seed = (sy, int(xs[len(xs) // 2]))
+    seen = np.zeros_like(small)
+    stack = [seed]
+    while stack:
+        y, x = stack.pop()
+        if y < 0 or x < 0 or y >= small.shape[0] or x >= small.shape[1] or seen[y, x] or not small[y, x]:
+            continue
+        seen[y, x] = True
+        # Two cells in every direction, so a thin stretch of path stays connected.
+        stack += [(y + dy, x + dx) for dy in (-2, -1, 0, 1, 2) for dx in (-2, -1, 0, 1, 2) if dy or dx]
+    rows = []
+    for y in range(int(h * 0.155) // q, int(h * 0.93) // q, 2):
+        xs = np.where(seen[y])[0]
+        if not len(xs):
+            continue
+        start = last = xs[0]
+        runs = []
+        for x in xs[1:]:
+            if x - last > 3:
+                runs.append((start, last))
+                start = x
+            last = x
+        runs.append((start, last))
+        for x0, x1 in runs:
+            rows.append([round(y * q / h, 4), round(float(x0 * q) / w, 4), round(float((x1 + 1) * q) / w, 4)])
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", help="folder holding the stage paintings")
     ap.add_argument("--species", default="oak")
     ap.add_argument("--plate", action="append", default=[], help="scene plate to convert to WebP: SRC, or SRC=DEST (DEST relative to the repo)")
     ap.add_argument("--plates-only", action="store_true", help="convert the plates and leave the trees alone")
+    ap.add_argument("--path-plate", help="portrait plate to trace the path on; writes app/lib/scene-path.js")
     args = ap.parse_args()
+
+    if args.path_plate:
+        rows = trace_path(Path(args.path_plate).expanduser())
+        (REPO / "app" / "lib" / "scene-path.js").write_text(
+            "// Written by scripts/cutout-trees.py; don't edit by hand. The path on the\n"
+            "// portrait plate: rows of [y, left edge, right edge], as fractions of the\n"
+            "// plate's height and width, top to bottom.\n"
+            "export const PORTRAIT_PATH = [\n" + "".join(f"  {json.dumps(row)},\n" for row in rows) + "];\n")
+        print(f"scene-path.js  {len(rows)} rows, y {rows[0][0]} to {rows[-1][0]}")
 
     for spec in args.plate:
         src, _, dest = spec.partition("=")
