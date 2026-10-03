@@ -5,7 +5,7 @@ Each stage painting (one tree on a flat grey-blue gradient) becomes a trimmed
 WebP with real alpha at public/scenes/<species>/stage-N.webp, and the stage
 sizes and foot points go to app/lib/scene-art.js for app/lib/scene.js (a
 module rather than JSON, so the unit tests can import it under plain Node).
-The scene plate is converted to WebP alongside.
+The scene plates are converted to WebP alongside.
 
 Steps per stage:
   1. rembg (isnet-general-use, with alpha matting) gives the alpha.
@@ -26,7 +26,11 @@ Source paintings stay outside the repo. Run it with the venv that has rembg:
     ~/Developer/grove-art-venv/bin/pip install "rembg[cpu]" pillow
     ~/Developer/grove-art-venv/bin/python scripts/cutout-trees.py \\
         --src ~/Desktop/"tree images" --species oak \\
-        --plate public/scenes/peter/meadow-empty.png
+        --plate public/scenes/peter/meadow-empty.png \\
+        --plate ~/Desktop/"tree images/narrow grove.png"=public/scenes/peter/meadow-portrait.webp
+
+A plate is SRC (written beside itself as meadow.webp) or SRC=DEST, with DEST
+relative to the repo. --plates-only skips the trees.
 
 The first run downloads the isnet-general-use model (about 170MB) to ~/.u2net.
 """
@@ -181,10 +185,21 @@ def cut_stage(session, src, stage):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="folder holding the stage paintings")
+    ap.add_argument("--src", help="folder holding the stage paintings")
     ap.add_argument("--species", default="oak")
-    ap.add_argument("--plate", help="scene plate to convert to WebP alongside it")
+    ap.add_argument("--plate", action="append", default=[], help="scene plate to convert to WebP: SRC, or SRC=DEST (DEST relative to the repo)")
+    ap.add_argument("--plates-only", action="store_true", help="convert the plates and leave the trees alone")
     args = ap.parse_args()
+
+    for spec in args.plate:
+        src, _, dest = spec.partition("=")
+        src = Path(src).expanduser()
+        dest = REPO / dest if dest else src.with_name("meadow.webp")
+        plate = Image.open(src).convert("RGB")
+        q, size = save_webp(plate, dest, PLATE_BUDGET)
+        print(f"{dest.name}  {plate.width}x{plate.height}  {q}  {size / 1000:.0f}KB")
+    if args.plates_only:
+        return
 
     out_dir = REPO / "public" / "scenes" / args.species
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -204,12 +219,6 @@ def main():
         "// stage (0 Planted ... 7 Full grown): the cut-out's pixel size and its foot,\n"
         "// the point that stands on an anchor, as fractions of width and height.\n"
         + marker + json.dumps(manifest, indent=2) + ";\n")
-
-    if args.plate:
-        plate = Image.open(args.plate).convert("RGB")
-        dest = Path(args.plate).with_name("meadow.webp")
-        q, size = save_webp(plate, dest, PLATE_BUDGET)
-        print(f"{dest.name}  {plate.width}x{plate.height}  {q}  {size / 1000:.0f}KB")
 
 
 if __name__ == "__main__":

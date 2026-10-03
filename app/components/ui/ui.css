@@ -57,6 +57,10 @@
 .sceneScroller::-webkit-scrollbar {
   display: none;
 }
+/* The portrait plate fits the screen: nothing to pan. */
+.sceneScroller.still {
+  overflow-x: hidden;
+}
 /* Clipped to the scene's width, which ends past the last tree rather than
    at the end of the last plate copy. */
 .scenePlates {
@@ -102,6 +106,20 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, rgba(28, 44, 20, 0.42), rgba(28, 44, 20, 0));
   pointer-events: none;
+}
+/* The portrait plate's grass is bright and close to the oaks' own green, so
+   each tree gets a soft dark edge and a deeper tone, and a darker ground
+   shadow, to stand clear of it. */
+.scene.portrait .sceneTreeImg {
+  filter: drop-shadow(0 1px 3px rgba(16, 30, 10, 0.6)) brightness(0.8) contrast(1.14) saturate(1.2);
+}
+/* Narrower labels on the portrait plate, so two fit side by side at 320. */
+.scene.portrait .treeLabelPin {
+  max-width: min(150px, 46vw);
+  padding: 6px 7px 6px 10px;
+}
+.scene.portrait .sceneShadow {
+  background: radial-gradient(closest-side, rgba(24, 40, 16, 0.55), rgba(24, 40, 16, 0));
 }
 .sceneFade {
   position: absolute;

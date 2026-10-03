@@ -3,11 +3,12 @@
 import React from "react";
 import Icon from "../Icon";
 import SceneTree from "./SceneTree";
-import { OPENING, PLATE, layoutScene, openingMove, panLabels, placeLabels, plateSize } from "../../lib/scene";
+import { OPENING, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
 
-// The grove scene: the painted plate full-bleed behind Home, wider than a
-// phone, so it pans sideways; the trees standing on their anchors with their
-// labels; and the two chevrons that pan it. Home's header, notices and bar
+// The grove scene: the painted plate full-bleed behind Home, with the trees
+// standing on their anchors and their labels. A portrait screen gets the tall
+// plate, which fits the screen and doesn't pan; any other screen gets the
+// wide plate, which pans sideways, with the two chevrons that pan it. Home's header, notices and bar
 // float above it. Where everything goes is worked out in lib/scene.js; this
 // measures the viewport and the labels, and draws.
 export default function GroveScene({ g }) {
@@ -23,6 +24,7 @@ export default function GroveScene({ g }) {
   // last shown, so a hiding label fades out where it was.
   const labelItems = React.useRef([]);
   const labelSlots = React.useRef({});
+  const labelObstacles = React.useRef([]);
   const shownRef = React.useRef(new Set());
   const lastPos = React.useRef({});
   const frame = React.useRef(0);
@@ -39,12 +41,11 @@ export default function GroveScene({ g }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  const plate = view ? plateSize(view.vw, view.vh) : null;
-  const layout = plate ? layoutScene(concepts, plate.w, plate.h) : null;
-  // A very wide window draws the plate taller than the screen; keep its
-  // bottom, where the meadow is, and lose sky.
-  const offsetTop = plate ? Math.min(0, view.vh - plate.h) : 0;
-  const layoutKey = layout ? `${plate.w}x${plate.h}|${concepts.map((c) => `${c.id}:${c.days}:${c.name}`).join("|")}` : "";
+  const layout = view ? sceneLayout(concepts, view.vw, view.vh) : null;
+  const plate = layout ? layout.plate : null;
+  const offsetTop = layout ? layout.offsetTop : 0;
+  const portrait = !!layout && layout.kind === "portrait";
+  const layoutKey = layout ? `${layout.kind}|${view.vw}x${view.vh}|${concepts.map((c) => `${c.id}:${c.days}:${c.name}`).join("|")}` : "";
 
   // Measures the real scroll position rather than guessing from tree count,
   // since how much of the plate fits depends on the actual screen width.
@@ -60,7 +61,7 @@ export default function GroveScene({ g }) {
   const placeForScroll = React.useCallback(() => {
     const el = treeRowRef.current;
     if (!el || !labelItems.current.length) return;
-    const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current);
+    const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current, labelObstacles.current);
     shownRef.current = res.shown;
     for (const id of Object.keys(res.pos)) {
       if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = res.pos[id];
@@ -82,7 +83,11 @@ export default function GroveScene({ g }) {
       return { id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: el ? el.offsetWidth : 140, h: el ? el.offsetHeight : 42 };
     });
     labelItems.current = items;
-    labelSlots.current = placeLabels(items, { minX: 0, maxX: layout.width, minY, maxY });
+    // On the portrait plate nothing pans, so the slots are clamped to the
+    // screen from the start, and no label may cover another tree's trunk base.
+    labelObstacles.current = portrait ? layout.trees.map(trunkBase) : [];
+    const edge = portrait ? 8 : 0;
+    labelSlots.current = placeLabels(items, { minX: edge, maxX: layout.width - edge, minY, maxY }, labelObstacles.current, { beside: portrait });
     lastPos.current = {};
     shownRef.current = new Set();
     placeForScroll();
@@ -113,7 +118,8 @@ export default function GroveScene({ g }) {
     const el = treeRowRef.current;
     if (!el || !layout) return;
     const focus = layout.trees.find((t) => justPlantedIds.includes(t.id)) || layout.trees.find((t) => grewIds.includes(t.id));
-    const move = openingMove(opening.current, { key: preview ? "sample" : activeGroveId || "", hasTrees: has, focusId: focus ? focus.id : null });
+    // The plate is part of the key: turning the phone is a new scene to open.
+    const move = openingMove(opening.current, { key: `${layout.kind}:${preview ? "sample" : activeGroveId || ""}`, hasTrees: has, focusId: focus ? focus.id : null });
     opening.current = move.state;
     if (move.centre) {
       const prev = el.style.scrollBehavior;
@@ -139,14 +145,15 @@ export default function GroveScene({ g }) {
 
   let plantedIndex = 0;
   return (
-    <div className="scene">
+    <div className={portrait ? "scene portrait" : "scene"}>
       {layout && (
-        <div ref={treeRowRef} onScroll={onScroll} onWheel={markScrolled} onTouchMove={markScrolled} className="sceneScroller noscroll">
+        <div ref={treeRowRef} onScroll={onScroll} onWheel={markScrolled} onTouchMove={markScrolled} className={layout.pans ? "sceneScroller noscroll" : "sceneScroller noscroll still"}>
           <div className="scenePlates" style={{ width: layout.width, height: plate.h, top: offsetTop }}>
             {/* Each copy shows its window of the plate; odd copies are mirrored. */}
             {Array.from({ length: layout.tiles }, (_, k) => (
-              <div key={k} className="scenePlateWindow" style={{ left: k * layout.tileW, width: layout.tileW, height: plate.h, transform: k % 2 ? "scaleX(-1)" : undefined }}>
-                <img className="scenePlate" src={PLATE.src} alt="" width={plate.w} height={plate.h} draggable={false} style={{ left: -layout.crop.left * plate.w }} />
+              // A pixel of overlap, so a fractional copy width never leaves a hairline between copies.
+              <div key={k} className="scenePlateWindow" style={{ left: Math.floor(k * layout.tileW), width: Math.ceil(layout.tileW) + 1, height: plate.h, transform: k % 2 ? "scaleX(-1)" : undefined }}>
+                <img className="scenePlate" src={layout.src} alt="" width={Math.round(plate.w)} height={Math.round(plate.h)} draggable={false} style={{ left: layout.plateLeft, width: plate.w, height: plate.h }} />
               </div>
             ))}
             {layout.trees.map((t, i) => {
@@ -160,6 +167,8 @@ export default function GroveScene({ g }) {
                   c={c}
                   label={labels.pos[c.id]}
                   labelShown={labels.shown.has(c.id)}
+                  showStage={layout.showStage}
+                  portrait={portrait}
                   labelRef={(el) => { labelRefs.current[c.id] = el; }}
                   animClass={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""}
                   delay={delay}

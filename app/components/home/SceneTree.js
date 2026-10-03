@@ -10,12 +10,14 @@ import { stageName } from "../../lib/growth";
 // transform of its own, so the shadow, the tree and the label each layer
 // against the whole scene: every label above every tree, nearer trees over
 // farther ones. The planting and growing animations run on the image alone.
-export default function SceneTree({ t, c, label, labelShown, labelRef, animClass, delay, onOpen }) {
-  const sw = Math.max(18, t.w * 0.62);
-  const sh = Math.max(6, t.w * 0.13);
+export default function SceneTree({ t, c, label, labelShown, showStage = true, portrait = false, labelRef, animClass, delay, onOpen }) {
+  // The portrait plate's grass is brighter, so its shadows are wider and
+  // fall further right (ui.css darkens them too).
+  const sw = Math.max(portrait ? 20 : 18, t.w * (portrait ? 0.8 : 0.62));
+  const sh = Math.max(portrait ? 7 : 6, t.w * (portrait ? 0.16 : 0.13));
   // The plate is lit from the upper left, so shadows fall a little to the
   // right; a mirrored copy of the plate is lit from the upper right.
-  const ox = (t.mirrored ? -1 : 1) * t.w * 0.06;
+  const ox = (t.mirrored ? -1 : 1) * t.w * (portrait ? 0.12 : 0.06);
   const fx = t.footX - t.left;
   const fy = t.footY - t.top;
   const pos = label || { x: t.footX - 70, y: t.footY + 6 };
@@ -34,7 +36,7 @@ export default function SceneTree({ t, c, label, labelShown, labelRef, animClass
       <span ref={labelRef} className={labelShown ? "treeLabelPin" : "treeLabelPin isHidden"} aria-hidden={labelShown ? undefined : true} style={{ left: pos.x - t.left, top: pos.y - t.top, zIndex: 1000 + t.z }}>
         <span className="treeLabelText">
           <span className="treeLabel">{c.name}</span>
-          <span className="treeLabelStage">{stageName(c.days)}</span>
+          {showStage && <span className="treeLabelStage">{stageName(c.days)}</span>}
         </span>
         <Icon name="chevronRight" size={14} color="#687b64" strokeWidth={2.2} />
       </span>

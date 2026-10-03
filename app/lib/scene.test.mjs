@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATE_ASPECT, REPEAT, STAGE_CURVE, layoutScene, openingMove, panLabels, placeLabels, plateSize, speciesOf, treeArt } from "./scene.js";
+import {
+  ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
+  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase,
+} from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 
 const trees = (n, days = () => 3) => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: days(i), mastery: 0 }));
@@ -282,5 +285,131 @@ test("the pan to a just-planted or just-grown tree takes priority", () => {
   );
   // But only when the trees first appear, not on later changes in the same grove.
   assert.deepEqual(opening([{ key: "g1", hasTrees: true }, { key: "g1", hasTrees: true, focusId: "grew" }]), [CENTRE, NOTHING]);
+});
+
+// ---- The portrait plate ----
+const PHONES = [[320, 844], [375, 844], [430, 932], [320, 568], [280, 653], [768, 1024]];
+const SIZES = { "all full grown": () => 7, "all just planted": () => 0, mixed: (i) => i % 8, "mixed, big ones far": (i) => 7 - (i % 8) };
+
+test("a portrait screen gets the portrait plate, anything else the wide one", () => {
+  assert.equal(plateFor(375, 844), "portrait");
+  assert.equal(plateFor(844, 390), "wide");
+  assert.equal(plateFor(1280, 800), "wide");
+  assert.equal(plateFor(800, 800), "wide");
+  const p = sceneLayout(trees(3), 375, 844);
+  assert.equal(p.kind, "portrait");
+  assert.equal(p.src, PLATES.portrait.src);
+  assert.equal(p.pans, false);
+  assert.equal(p.width, 375);
+  const w = sceneLayout(trees(3), 844, 390);
+  assert.equal(w.kind, "wide");
+  assert.equal(w.src, PLATES.wide.src);
+  assert.equal(w.pans, true);
+  // The wide layout is the one layoutScene has always given.
+  const size = plateSize(844, 390);
+  assert.deepEqual(w.trees.map((t) => [t.footX, t.footY]), layoutScene(trees(3), size.w, size.h).trees.map((t) => [t.footX, t.footY]));
+});
+
+test("the portrait plate covers the screen with nothing to pan", () => {
+  for (const [vw, vh] of PHONES) {
+    const s = sceneLayout(trees(5), vw, vh);
+    assert.equal(s.width, vw);
+    assert.ok(s.plate.w >= vw - 1e-9 && s.plate.h >= vh - 1e-9, `${vw}x${vh}: the plate doesn't cover the screen`);
+    assert.ok(s.plateLeft <= 0 && s.plateLeft + s.plate.w >= vw - 1e-9);
+    assert.ok(s.offsetTop <= 0 && s.offsetTop + s.plate.h >= vh - 1e-9);
+  }
+});
+
+test("every portrait tree is fully on screen, for 1 to 30 trees of any size", () => {
+  for (const [vw, vh] of PHONES) for (let n = 1; n <= 30; n++) for (const [name, days] of Object.entries(SIZES)) {
+    const s = sceneLayout(trees(n, days), vw, vh);
+    for (const t of s.trees) {
+      const top = t.top + s.offsetTop;
+      assert.ok(t.left >= 0 && t.left + t.w <= vw + 1e-9, `${vw}x${vh}, ${n} trees, ${name}: ${t.id} runs off the side`);
+      assert.ok(top >= 0 && top + t.h <= vh, `${vw}x${vh}, ${n} trees, ${name}: ${t.id} runs off the top or bottom`);
+    }
+  }
+});
+
+test("no portrait trunk base is covered by a nearer tree's trunk", () => {
+  for (const [vw, vh] of PHONES) for (let n = 1; n <= 30; n++) for (const [name, days] of Object.entries(SIZES)) {
+    const covered = coveredTrunks(layoutPortrait(trees(n, days), vw, vh).trees);
+    assert.deepEqual(covered, [], `${vw}x${vh}, ${n} trees, ${name}`);
+  }
+});
+
+test("portrait trees fill near-first, and one to seven use the lower and middle meadow", () => {
+  assert.equal(PORTRAIT_ANCHORS.length, 12);
+  for (let i = 1; i < PORTRAIT_ANCHORS.length; i++) assert.ok(PORTRAIT_ANCHORS[i].y < PORTRAIT_ANCHORS[i - 1].y, `anchor ${i + 1} isn't further up the hill`);
+  for (const a of PORTRAIT_ANCHORS.slice(0, 7)) assert.ok(a.y >= 0.42 && a.y <= 0.72, `anchor at ${a.y}`);
+  const { trees: placed } = layoutPortrait(trees(7), 375, 844);
+  const plateH = PLATES.portrait.h * Math.max(375 / PLATES.portrait.w, 844 / PLATES.portrait.h);
+  placed.forEach((t, i) => assert.ok(Math.abs(t.footY - PORTRAIT_ANCHORS[i].y * plateH) < 1e-9));
+});
+
+test("a near full-grown portrait tree is within the agreed share of the plate", () => {
+  assert.ok(PORTRAIT.fullHeight >= 0.24 && PORTRAIT.fullHeight <= 0.28);
+  const [t] = layoutPortrait(trees(1, () => 7), 375, 844).trees;
+  assert.ok(Math.abs(t.h - 844 * PORTRAIT.fullHeight) < 1e-9);
+});
+
+test("portrait scale follows the count", () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  for (const n of [1, 3, 7]) assert.equal(portraitScale(n), 1);
+  close(portraitScale(8), 0.965);
+  close(portraitScale(12), 0.825);
+  for (let n = 8; n <= 30; n++) assert.ok(portraitScale(n) < portraitScale(n - 1), `${n} trees aren't smaller than ${n - 1}`);
+  // Past twelve the lattice may lower the scale further, never raise it.
+  for (const n of [13, 15, 20, 30]) {
+    const { scale, spots } = portraitSpots(n);
+    assert.equal(spots.length, n);
+    assert.ok(scale <= portraitScale(n) + 1e-9 && scale < 0.825);
+  }
+  assert.equal(layoutPortrait(trees(12), 375, 844).scale, portraitScale(12));
+});
+
+test("labels drop the stage line past twelve trees, on the portrait plate only", () => {
+  assert.equal(sceneLayout(trees(12), 375, 844).showStage, true);
+  assert.equal(sceneLayout(trees(13), 375, 844).showStage, false);
+  assert.equal(sceneLayout(trees(15), 375, 844).showStage, false);
+  assert.equal(sceneLayout(trees(15), 1280, 800).showStage, true);
+});
+
+test("portrait labels stay on screen, clear of each other and of every other trunk base", () => {
+  for (const [vw, vh] of [[320, 844], [375, 844]]) for (const n of [3, 7, 12, 15]) for (const days of Object.values(SIZES)) {
+    const s = sceneLayout(trees(n, days), vw, vh);
+    const items = s.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, w: 130, h: s.showStage ? 42 : 28 }));
+    const bases = s.trees.map(trunkBase);
+    const slots = placeLabels(items, { minX: 8, maxX: vw - 8, minY: 130, maxY: vh - 140 }, bases, { beside: true });
+    const { pos, shown } = panLabels(items, slots, { sx: 0, vw }, new Set(), bases);
+    // A label stays beside its own tree: under the foot or above the canopy,
+    // at most one step further, and at most 0.6 of its width to either side.
+    for (const it of items) {
+      const p = pos[it.id];
+      const step = it.h + 6;
+      assert.ok([it.footY + 6, it.top - it.h - 6, it.footY + 6 + step, it.top - it.h - 6 - step].some((y) => Math.abs(p.y - y) < 1e-9), `${vw}, ${n} trees: a label drifted vertically`);
+      assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 0.6 * it.w + it.w / 2, `${vw}, ${n} trees: a label drifted sideways`);
+    }
+    const rects = items.filter((it) => shown.has(it.id)).map((it) => ({ id: it.id, ...pos[it.id], w: it.w, h: it.h }));
+    assert.ok(rects.length >= 1, `${vw}, ${n} trees: no label shown`);
+    for (const r of rects) {
+      assert.ok(r.x >= 8 - 1e-9 && r.x + r.w <= vw - 8 + 1e-9, `${vw}, ${n} trees: a label is off the side`);
+      for (const b of bases) {
+        if (b.id === r.id) continue;
+        assert.ok(!(r.x < b.x + b.w && b.x < r.x + r.w && r.y < b.y + b.h && b.y < r.y + r.h), `${vw}, ${n} trees: a label covers a trunk base`);
+      }
+    }
+    noOverlap(rects);
+  }
+});
+
+test("turning the phone opens the scene afresh", () => {
+  assert.deepEqual(
+    opening([{ key: "portrait:g1", hasTrees: true }, { scrolled: true }, { key: "wide:g1", hasTrees: true }]),
+    [CENTRE, CENTRE],
+  );
+  // With the plate's name on the key, "no grove" is still no grove: a late
+  // load after a swipe keeps the swipe.
+  assert.deepEqual(opening([{ key: "wide:", hasTrees: false }, { scrolled: true }, { key: "wide:g1", hasTrees: true }]), [CENTRE, NOTHING]);
 });
 
