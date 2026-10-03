@@ -272,6 +272,17 @@ export const PORTRAIT = {
   minHeight: 28,
   minHeightStep: 0.08,
   minPlantedWidth: 20,
+  // Sprout, seedling and sapling have thin stems and sparse yellow-green
+  // leaves that sink into the grass, so those stages alone get a little more
+  // presence: a filter that sets the leaves a shade darker and greener than
+  // the calmed plate, a very soft cream halo so the stem separates from the
+  // grass, and a larger, stronger ground shadow. Tuned by eye.
+  young: {
+    stages: [1, 2, 3],
+    filter: { contrast: 1.12, brightness: 0.9, saturation: 1.1 },
+    halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.5 },
+    shadow: { size: 1.3, opacity: 0.72 },
+  },
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
   shrinkPerTree: 0.035,
   // Where the plate sits when a squarer screen crops it top and bottom:
@@ -426,3 +437,14 @@ export function sceneLayout(concepts, vw, vh) {
   return { kind, src: PLATES.wide.src, plate, plateLeft: -layout.crop.left * plate.w, offsetTop: Math.min(0, vh - plate.h), pans: true, showStage: true, ...layout };
 }
 
+// The extra presence a young tree gets on the portrait plate, as CSS: null
+// for the planted mark and for the grown stages, which are drawn as painted.
+export function youngLook(stage) {
+  const y = PORTRAIT.young;
+  if (!y.stages.includes(stage)) return null;
+  return {
+    filter: `contrast(${y.filter.contrast}) brightness(${y.filter.brightness}) saturate(${y.filter.saturation}) drop-shadow(0 0 ${y.halo.blur}px rgba(${y.halo.color}, ${y.halo.opacity}))`,
+    shadowSize: y.shadow.size,
+    shadowOpacity: y.shadow.opacity,
+  };
+}

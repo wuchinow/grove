@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLANTED_MAX_WIDTH, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
-  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase,
+  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
 } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 
@@ -511,5 +511,14 @@ test("turning the phone opens the scene afresh", () => {
   // With the plate's name on the key, "no grove" is still no grove: a late
   // load after a swipe keeps the swipe.
   assert.deepEqual(opening([{ key: "wide:", hasTrees: false }, { scrolled: true }, { key: "wide:g1", hasTrees: true }]), [CENTRE, NOTHING]);
+});
+
+test("only sprout, seedling and sapling get the young-tree look", () => {
+  for (const stage of [0, 4, 5, 6, 7]) assert.equal(youngLook(stage), null);
+  for (const stage of [1, 2, 3]) {
+    const look = youngLook(stage);
+    assert.match(look.filter, /^contrast\([\d.]+\) brightness\([\d.]+\) saturate\([\d.]+\) drop-shadow\(0 0 [\d.]+px rgba\(250, 252, 240, [\d.]+\)\)$/);
+    assert.ok(look.shadowSize > 1 && look.shadowOpacity > 0.55);
+  }
 });
 
