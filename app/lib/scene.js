@@ -30,19 +30,9 @@ export const REPEAT = { left: 0.12, right: 0.88 };
 // stage's share of full size. scripts/cutout-trees.py sizes the art from the
 // same numbers; change them together.
 export const FULL_HEIGHT = 0.4;
-export const STAGE_CURVE = [0.12, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1];
-
-// The planted stage's art is an acorn in a wide, low mound, so sizing it by
-// height like the trees makes it read bigger than a sprout. It is sized by
-// width instead: at most this share of the sprout's drawn width at the same
-// anchor, on both plates.
-export const PLANTED_MAX_WIDTH = 0.7;
-function plantedSize(species, w, sproutH) {
-  const sprout = SCENE_ART[species][1];
-  const art = SCENE_ART[species][0];
-  const width = Math.min(w, PLANTED_MAX_WIDTH * sproutH * (sprout.w / sprout.h));
-  return { w: width, h: (width * art.h) / art.w };
-}
+// The planted stage is a soil mound with a seedling just coming up; it is drawn
+// at about 0.65 of the sprout's height, so it reads as just planted.
+export const STAGE_CURVE = [0.11, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1];
 
 // The seven anchors on this plate, in fill order: x and the foot's y as
 // fractions of the plate, depth as a scale (far rows are smaller). The first
@@ -93,9 +83,8 @@ export function layoutScene(concepts, plateW, plateH) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    let h = plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[stage];
-    let w = (h * art.w) / art.h;
-    if (stage === 0) ({ w, h } = plantedSize(species, w, plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[1]));
+    const h = plateH * FULL_HEIGHT * a.depth * STAGE_CURVE[stage];
+    const w = (h * art.w) / art.h;
     const footX = tile * tileW + (mirrored ? crop.right - a.x : a.x - crop.left) * plateW;
     const footY = a.y * plateH;
     return { id: c.id, stage, species, mirrored, depth: a.depth, footX, footY, w, h, left: footX - art.footX * w, top: footY - art.footY * h, art };
@@ -296,7 +285,7 @@ export const PORTRAIT = {
   fullHeight: 0.24,
   // Each stage's share of full size. Higher at the bottom than the wide
   // plate's STAGE_CURVE, so the youngest trees stay legible on a phone.
-  stageCurve: [0.2, 0.26, 0.33, 0.42, 0.54, 0.67, 0.83, 1],
+  stageCurve: [0.17, 0.26, 0.33, 0.42, 0.54, 0.67, 0.83, 1],
   // The plate is drawn a little darker and less saturated than it was
   // painted, so the oaks stand out from the grass. Tuned by eye; the real fix
   // for young trees blending in is in the art.
@@ -311,18 +300,15 @@ export const PORTRAIT = {
   // No tree is drawn shorter than this on a 375-wide screen (the floor
   // scales with the screen's width). Each stage's floor is a little higher
   // than the last, so the stages still read in order where the floor applies.
-  // The planted mark is sized by width (PLANTED_MAX_WIDTH), so it has a
-  // minimum width instead, scaled the same way.
   minHeight: 28,
   minHeightStep: 0.08,
-  minPlantedWidth: 20,
-  // Sprout, seedling and sapling have thin stems and sparse yellow-green
+  // The planted seedling, sprout, seedling and sapling have thin stems and sparse yellow-green
   // leaves that sink into the grass, so those stages alone get a little more
   // presence: a filter that sets the leaves a shade darker and greener than
   // the calmed plate, a very soft cream halo so the stem separates from the
   // grass, and a larger, stronger ground shadow. Tuned by eye.
   young: {
-    stages: [1, 2, 3],
+    stages: [0, 1, 2, 3],
     filter: { contrast: 1.2, brightness: 0.82, saturation: 1.2 },
     halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.6 },
     shadow: { size: 1.4, opacity: 0.8 },
@@ -527,17 +513,16 @@ export function layoutPortrait(concepts, vw, vh) {
     const stage = stageOf(c.days);
     const species = speciesOf(c);
     const art = SCENE_ART[species][stage];
-    const floorFor = (st) => PORTRAIT.minHeight * (vw / 375) * (1 + PORTRAIT.minHeightStep * st);
+    // The floor rises a step per stage. The sprout's floor is also high
+    // enough that its mound is as wide as the planted stage's at its floor,
+    // so the planted stage is never the wider of the two.
+    const planted = SCENE_ART[species][0];
+    const sprout = SCENE_ART[species][1];
+    const sproutStep = Math.max(1 + PORTRAIT.minHeightStep, (planted.w / planted.h) / (sprout.w / sprout.h) + 0.01);
+    const floorFor = (st) => PORTRAIT.minHeight * (vw / 375) * (st === 0 ? 1 : sproutStep * (1 + PORTRAIT.minHeightStep * (st - 1)));
     const heightOf = (st) => Math.max(plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[st] * scale * squeeze, floorFor(st));
-    let h = heightOf(stage);
-    let w = (h * art.w) / art.h;
-    if (stage === 0) {
-      // By width: under the sprout's, and never under the minimum.
-      const raw = (plateH * PORTRAIT.fullHeight * a.depth * PORTRAIT.stageCurve[0] * scale * squeeze * art.w) / art.h;
-      ({ w } = plantedSize(species, raw, heightOf(1)));
-      w = Math.max(w, PORTRAIT.minPlantedWidth * (vw / 375));
-      h = (w * art.h) / art.w;
-    }
+    const h = heightOf(stage);
+    const w = (h * art.w) / art.h;
     const footY = a.y * plateH;
     // Out from the path's edge on its side, then held fully on screen.
     const e = pathEdges(a.y);

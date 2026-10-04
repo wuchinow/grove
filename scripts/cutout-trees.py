@@ -50,7 +50,9 @@ REPO = Path(__file__).resolve().parent.parent
 
 # Which source file is which stage (0 Planted ... 7 Full grown), checked by
 # eye against the stage names in app/lib/growth.js.
-SOURCES = {"oak": {0: "8.png", 1: "7.png", 2: "6.png", 3: "4.png", 4: "2.png", 5: "5.png", 6: "3.png", 7: "1.png"}}
+# Stages 0 and 1 are species-neutral: a soil mound with a seedling just coming
+# up, and the sprout (no acorn; other species won't have one).
+SOURCES = {"oak": {0: "stage-0 planted.png", 1: "stage-1 sprout.png", 2: "6.png", 3: "4.png", 4: "2.png", 5: "5.png", 6: "3.png", 7: "1.png"}}
 
 # Keep in step with app/lib/scene.js: a tree's drawn height is plate height x
 # FULL_HEIGHT x depth x STAGE_CURVE[stage]. The plate is as tall as the
@@ -59,7 +61,11 @@ SOURCES = {"oak": {0: "8.png", 1: "7.png", 2: "6.png", 3: "4.png", 4: "2.png", 5
 # desktop draws the full-grown oak about 450px tall, which this still covers
 # at about 1.7x.
 FULL_HEIGHT = 0.40
-STAGE_CURVE = [0.12, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1.0]
+STAGE_CURVE = [0.11, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1.0]
+# The two smallest stages are also drawn in lists and cards (TreeArt), and on
+# the portrait plate they have a height floor, so they are written no smaller
+# than this many px tall.
+MIN_SMALL_STAGE_H = 240
 MAX_PLATE_H = 932
 
 # Bytes, read strictly (150KB = 150,000 bytes).
@@ -69,8 +75,8 @@ PLATE_BUDGET = 400_000
 # Per stage: how far up from the bottom of the trimmed image the trunk meets
 # the ground (the point that stands on an anchor), and where the grass
 # patch's feather starts, as a fraction of the patch's half-width (1 = rim).
-FOOT_FROM_BOTTOM = {0: 0.30, 1: 0.16, 2: 0.10, 3: 0.09, 4: 0.08, 5: 0.08, 6: 0.07, 7: 0.08}
-FEATHER_INNER = {0: 0.62, 1: 0.5, 2: 0.42, 3: 0.4, 4: 0.4, 5: 0.4, 6: 0.4, 7: 0.42}
+FOOT_FROM_BOTTOM = {0: 0.19, 1: 0.16, 2: 0.10, 3: 0.09, 4: 0.08, 5: 0.08, 6: 0.07, 7: 0.08}
+FEATHER_INNER = {0: 0.5, 1: 0.5, 2: 0.42, 3: 0.4, 4: 0.4, 5: 0.4, 6: 0.4, 7: 0.42}
 
 # Colour distance (0-441) from the fitted background: under KEY_NEAR a canopy
 # pixel is background showing through, over KEY_FAR it is tree.
@@ -175,6 +181,8 @@ def cut_stage(session, src, stage):
     rgba = np.dstack([fg, alpha * 255])[y0:y1, x0:x1]
     out = Image.fromarray(rgba.round().astype(np.uint8), "RGBA")
     target_h = round(2 * FULL_HEIGHT * MAX_PLATE_H * STAGE_CURVE[stage])
+    if stage <= 1:
+        target_h = max(target_h, MIN_SMALL_STAGE_H)
     if out.height > target_h:
         out = out.resize((round(out.width * target_h / out.height), target_h), Image.LANCZOS)
     # The foot: trunk base, centred over the patch, FOOT_FROM_BOTTOM up from the bottom.
