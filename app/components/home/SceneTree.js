@@ -1,7 +1,7 @@
 "use client";
 
 import Icon from "../Icon";
-import { leadLine, treeArt, youngLook } from "../../lib/scene";
+import { treeArt, youngLook } from "../../lib/scene";
 import { stageName } from "../../lib/growth";
 
 // One tree on the scene: its painted cut-out standing on its anchor, a soft
@@ -30,7 +30,16 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
   // When the tag had to move aside or above the tree, so the pin is no longer
   // over it, a hairline runs from the pin to the tag's nearest edge.
   let lead = null;
-  if (portrait && labelShown && pos.w) lead = leadLine(t.footX, t.footY, pos);
+  if (portrait && labelShown && pos.w) {
+    const tx = Math.min(Math.max(t.footX, pos.x + 7), pos.x + pos.w - 7);
+    // A tag above its tree is always joined to the pin, at its lower edge.
+    const aboveTree = pos.y < t.footY;
+    if (aboveTree || Math.abs(tx - t.footX) > 0.5) {
+      const dx = tx - t.footX;
+      const dy = (aboveTree ? pos.y + (pos.h || 0) : pos.y) - t.footY;
+      lead = { length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
+    }
+  }
   return (
     <button title={c.name} onClick={onOpen} className="sceneTree" data-foot={`${t.footX},${t.footY}`} data-art-foot={`${t.art.footX},${t.art.footY}`} style={{ left: t.left, top: t.top, width: t.w, height: t.h }}>
       <span className="sceneShadow" style={{ left: fx - sw / 2 + ox, top: fy - sh / 2, width: sw, height: sh, zIndex: t.z * 2, background: young ? `radial-gradient(closest-side, rgba(24, 40, 16, ${young.shadowOpacity}), rgba(24, 40, 16, 0))` : undefined }} />

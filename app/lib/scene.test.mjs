@@ -631,38 +631,3 @@ test("only the four youngest stages get the young-tree look", () => {
   }
 });
 
-
-test("a hairline is capped: a tag that would need a longer one is hidden, its pin kept", async () => {
-  const { LEAD_MAX, leadLine } = await import("./scene.js");
-  const band = { minX: 8, maxX: 367, minY: 100, maxY: 700 };
-  // Under its pin and free: shown, no line.
-  const free = placeLabels([{ id: "a", footX: 150, footY: 300, top: 250, w: 100, h: 22, lean: -1 }], band, [], { beside: true, maxLead: LEAD_MAX });
-  assert.equal(free.a.out, false);
-  assert.equal(leadLine(150, 300, { ...free.a, w: 100, h: 22 }), null);
-  // Every spot near the pin is under a neighbour's canopy; the only clear
-  // one is above a 120px tree, a line far past the cap: hidden.
-  const canopies = [{ id: "n", x: 0, y: 290, w: 375, h: 60 }];
-  const item = { id: "b", footX: 150, footY: 300, top: 180, w: 100, h: 22, lean: -1 };
-  const uncapped = placeLabels([item], band, [], { beside: true, canopies });
-  assert.equal(uncapped.b.out, false);
-  assert.ok(leadLine(150, 300, { ...uncapped.b, w: 100, h: 22 }).length > LEAD_MAX);
-  const capped = placeLabels([item], band, [], { beside: true, canopies, maxLead: LEAD_MAX });
-  assert.equal(capped.b.out, true);
-  // A hidden tag takes no room: the next tag may use the spot.
-  const two = placeLabels([item, { id: "c", footX: 150, footY: 260, top: 240, w: 100, h: 22, lean: -1 }], band, [], { beside: true, canopies: [{ id: "n", x: 0, y: 296, w: 375, h: 60 }], maxLead: LEAD_MAX });
-  assert.equal(two.b.out, true);
-  assert.equal(two.c.out, false);
-  // Every shown tag on real layouts keeps its line within the cap.
-  for (const [vw, n] of [[375, 7], [375, 12], [375, 15], [320, 12], [320, 15]]) {
-    const cs = Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `Concept ${i}`, days: (i * 3) % 8, mastery: 50 }));
-    const L = layoutScene(cs, vw, 844);
-    const items = L.trees.map((t) => ({ id: t.id, footX: t.footX, footY: t.footY, top: t.top, lean: t.side || 0, w: 96, h: 22 }));
-    const max = LEAD_MAX * vw / 375;
-    const slots = placeLabels(items, { minX: 8, maxX: vw - 8, minY: 130, maxY: 760 }, L.trees.map(trunkBase), { beside: true, canopies: L.trees.filter((t) => t.stage >= CANOPY_FROM_STAGE).map(canopyOf), maxLead: max });
-    for (const it of items) {
-      if (slots[it.id].out) continue;
-      const l = leadLine(it.footX, it.footY, { ...slots[it.id], w: it.w, h: it.h });
-      assert.ok(!l || l.length <= max + 0.01, `${vw}/${n}: ${it.id} line ${l && l.length}`);
-    }
-  }
-});

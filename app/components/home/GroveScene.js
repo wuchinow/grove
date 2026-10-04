@@ -3,7 +3,7 @@
 import React from "react";
 import Icon from "../Icon";
 import SceneTree from "./SceneTree";
-import { CANOPY_FROM_STAGE, LEAD_MAX, OPENING, canopyOf, crossesPath, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
+import { CANOPY_FROM_STAGE, OPENING, canopyOf, crossesPath, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
 
 // The grove scene: the painted plate full-bleed behind Home, with the trees
 // standing on their anchors and their labels. A portrait screen gets the tall
@@ -105,8 +105,6 @@ export default function GroveScene({ g }) {
       // the path's side of its pin where it wouldn't lie across the path.
       canopies: portrait ? layout.trees.filter((t) => t.stage >= CANOPY_FROM_STAGE).map(canopyOf) : [],
       crosses: portrait ? (r) => crossesPath(r, layout.frame) : null,
-      // A hairline is kept short; a tag that would need a longer one is hidden.
-      maxLead: portrait ? LEAD_MAX * layout.width / 375 : null,
     });
     lastPos.current = {};
     shownRef.current = new Set();
