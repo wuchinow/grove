@@ -110,6 +110,21 @@ function onCanopy(o, r) {
 const ABOVE_STEP = 10;
 // How far a leaning tag's near end reaches past its pin.
 const LABEL_LEAN = 10;
+// The longest hairline from a pin to its tag, in px at 375 (scaled with the
+// screen). A longer line reads as a stake, so a tag that would need one is
+// hidden and its pin kept.
+export const LEAD_MAX = 24;
+// The hairline from a trunk base to a tag at `r` ({ x, y, w, h }): to the tag's
+// lower edge when it sits above the tree, otherwise to the nearest point of
+// its top edge. Null when the pin is over the tag and no line is drawn.
+export function leadLine(footX, footY, r) {
+  const tx = Math.min(Math.max(footX, r.x + 7), r.x + r.w - 7);
+  const aboveTree = r.y < footY;
+  if (!aboveTree && Math.abs(tx - footX) <= 0.5) return null;
+  const dx = tx - footX;
+  const dy = (aboveTree ? r.y + (r.h || 0) : r.y) - footY;
+  return { length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
+}
 const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4;
 
 // Each label's vertical slot, decided once per layout for the whole scene.
@@ -127,8 +142,11 @@ const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b
 // where panLabels hides it rather than letting it drift across the scene.
 // `canopies` are the rects of grown trees a tag should keep off when it has
 // anywhere else to go; `crosses(rect)` says whether a rect lies across the path.
+// With `maxLead` (the portrait plate) a tag only takes a spot whose hairline
+// is that short or shorter, clear of every other grown tree; if there is
+// none it is hidden (`out`) and its pin stays.
 // Returns { [id]: { x, y, out } }.
-export function placeLabels(items, band, obstacles = [], { beside = false, canopies = [], crosses = null } = {}) {
+export function placeLabels(items, band, obstacles = [], { beside = false, canopies = [], crosses = null, maxLead = null } = {}) {
   const placed = [];
   const out = {};
   const clampX = (x, w) => Math.min(Math.max(x, band.minX), band.maxX - w);
@@ -155,6 +173,20 @@ export function placeLabels(items, band, obstacles = [], { beside = false, canop
         : [0, -0.4, 0.4, -0.7, 0.7].map((k) => centred + k * it.w);
       candidates = xs.map((cx) => ({ x: clampX(cx, it.w), y: below, w: it.w, h: it.h }));
       if (lean && crosses) candidates = candidates.filter((r, n) => n !== 4 || !crosses(r));
+      if (maxLead != null) {
+        // With the hairline capped, the sideways nudges are the ones the cap
+        // allows: `reach` is how far a tag's end can sit from its pin.
+        const reach = Math.sqrt(Math.max(0, maxLead * maxLead - GAP * GAP)) - 7 - 0.5;
+        const left = it.footX + LABEL_LEAN - it.w;
+        const right = it.footX - LABEL_LEAN;
+        const rect = (cx) => ({ x: clampX(cx, it.w), y: below, w: it.w, h: it.h });
+        const out3 = (from, dir) => [from, from + dir * (LABEL_LEAN + reach) / 2, from + dir * (LABEL_LEAN + reach)].map(rect);
+        // Away from the path first; the path's side only where the tag
+        // wouldn't lie across the path.
+        const away = lean < 0 ? out3(left, -1) : out3(right, 1);
+        const toward = (lean < 0 ? out3(right, 1) : out3(left, -1)).filter((r) => !crosses || !crosses(r));
+        candidates = lean ? [away[0], rect(centred), away[1], away[2], ...toward] : [rect(centred), ...out3(left, -1), ...out3(right, 1)];
+      }
       // Above the tree: just above it, then a little higher.
       aboveTree = [above, above - ABOVE_STEP].flatMap((y) => [centred, leaned].map((cx) => ({ x: clampX(cx, it.w), y, w: it.w, h: it.h })));
     } else {
@@ -170,6 +202,12 @@ export function placeLabels(items, band, obstacles = [], { beside = false, canop
     // Last before falling back: above the tree instead of under it.
     const offCanopies = (r) => free(r) && !others.some((o) => onCanopy(o, r));
     let pick = (others.length ? candidates.find(offCanopies) || aboveTree.find(offCanopies) : null) || candidates.find(free);
+    let tooFar = false;
+    if (maxLead != null) {
+      const near = (r) => { const l = leadLine(it.footX, it.footY, r); return !l || l.length <= maxLead + 0.01; };
+      pick = [...candidates, ...aboveTree].find((r) => near(r) && offCanopies(r));
+      tooFar = !pick;
+    }
     if (!pick && beside) {
       pick = candidates[0];
     } else if (!pick) {
@@ -178,11 +216,11 @@ export function placeLabels(items, band, obstacles = [], { beside = false, canop
       const inside = candidates.filter(inBand);
       pick = (inside.length ? inside : candidates).reduce((best, r) => (area(r) < area(best) ? r : best));
     }
-    placed.push(pick);
+    if (!tooFar) placed.push(pick);
     // `out`: no slot fits between the notices and the bar (a tall label on a
     // short screen). panLabels hides it rather than show it under either.
     // `held`: the sideways nudge is part of the slot (portrait); panLabels keeps it.
-    out[it.id] = { x: pick.x, y: pick.y, out: !inBand(pick), held: beside };
+    out[it.id] = { x: pick.x, y: pick.y, out: tooFar || !inBand(pick), held: beside };
   }
   return out;
 }
