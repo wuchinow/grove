@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLANTED_MAX_WIDTH, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
-  coveredTrunks, layoutPortrait, layoutScene, openingMove, panLabels, pathDistance, pathEdges, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
+  CANOPY_FROM_STAGE, canopyOf, coveredTrunks, crossesPath, layoutPortrait, layoutScene, openingMove, panLabels, pathDistance, pathEdges, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
 } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
 import { PORTRAIT_PATH } from "./scene-path.js";
@@ -529,6 +529,62 @@ test("a portrait tag leans away from the path, its near end just past the pin", 
   assert.equal(right.r.x, 210); // starts 10px left of the pin, the rest to the right
 });
 
+test("past twelve trees the two sides of the path never differ by more than one", () => {
+  for (let n = 13; n <= 30; n++) {
+    const { spots } = portraitSpots(n);
+    assert.equal(spots.length, n);
+    let left = 0, right = 0;
+    spots.forEach((s, i) => {
+      if (s.side < 0) left++; else right++;
+      assert.ok(Math.abs(left - right) <= 1, `${n} trees: after ${i + 1}, ${left} left and ${right} right`);
+      // Strict alternation, starting on the left.
+      assert.equal(s.side, i % 2 ? 1 : -1, `${n} trees: tree ${i + 1} is on the wrong side`);
+    });
+    // The right-hand trees use the open meadow beside the path's lower half.
+    assert.ok(spots.some((s) => s.side > 0 && s.y >= 0.45 && s.y <= 0.75), `${n} trees: nothing in the right-hand meadow`);
+  }
+});
+
+test("a tag keeps off a neighbouring grown tree when it has somewhere else to go", () => {
+  const band = { minX: 8, maxX: 367, minY: 100, maxY: 700 };
+  const item = { id: "young", footX: 200, footY: 300, top: 270, w: 80, h: 22, lean: -1 };
+  // With no grown tree nearby the tag leans away from the path: 130..210.
+  assert.equal(placeLabels([item], band, [], { beside: true }).young.x, 130);
+  // Leaning would put it on the oak; centred below the pin is free.
+  const oak = { id: "oak", x: 20, y: 200, w: 110, h: 140 };
+  assert.equal(placeLabels([item], band, [], { beside: true, canopies: [oak] }).young.x, 160);
+  // A wider oak covers that too: the path side of the pin, if the tag
+  // wouldn't lie across the path there; otherwise the next spot along.
+  const wide = { id: "wide", x: 60, y: 200, w: 120, h: 140 };
+  assert.equal(placeLabels([item], band, [], { beside: true, canopies: [wide], crosses: () => false }).young.x, 190);
+  assert.equal(placeLabels([item], band, [], { beside: true, canopies: [wide], crosses: () => true }).young.x, 192);
+  // Hemmed in on both sides under the pin: above its own tree.
+  const low = { id: "low", x: 0, y: 290, w: 400, h: 60 };
+  assert.deepEqual(placeLabels([item], band, [], { beside: true, canopies: [low] }).young, { x: 160, y: 270 - 22 - 6, out: false, held: true });
+  // Nothing else fits: it leans onto the tree, as before, rather than hiding.
+  const everywhere = { id: "all", x: 0, y: 0, w: 400, h: 800 };
+  assert.equal(placeLabels([item], band, [], { beside: true, canopies: [everywhere] }).young.x, 130);
+  // A tree's own canopy never counts against its own tag.
+  assert.equal(placeLabels([item], band, [], { beside: true, canopies: [{ ...oak, id: "young" }] }).young.x, 130);
+  assert.equal(CANOPY_FROM_STAGE, 4);
+});
+
+test("crossesPath and canopyOf describe the plate and a tree", () => {
+  const frame = { plateLeft: 0, plateW: 1000, plateH: 1000 };
+  const [y, left, right] = PORTRAIT_PATH[80];
+  assert.equal(crossesPath({ x: left * 1000 - 20, y: y * 1000 - 5, w: 60, h: 10 }, frame), true);
+  assert.equal(crossesPath({ x: 20, y: y * 1000 - 5, w: 60, h: 10 }, frame), false);
+  const c = canopyOf({ id: "t", left: 100, top: 50, w: 100, h: 200 });
+  assert.deepEqual([c.id, c.round, Math.round(c.x), c.y, Math.round(c.w), Math.round(c.h)], ["t", true, 104, 50, 92, 180]);
+  // A round canopy is the ellipse inside its box: a tag in the box's corner is clear of it.
+  const band = { minX: 0, maxX: 400, minY: 0, maxY: 800 };
+  const tag = { id: "y", footX: 60, footY: 44, top: 20, w: 40, h: 16, lean: 0 };
+  const crown = { id: "t", round: true, x: 0, y: 40, w: 200, h: 200 };
+  assert.equal(placeLabels([tag], band, [], { beside: true, canopies: [crown] }).y.x, 40);
+  // As a plain box the same canopy covers that corner, so the tag moves on.
+  assert.notEqual(placeLabels([{ ...tag, top: 40 }], band, [], { beside: true, canopies: [{ ...crown, y: 46, round: false }] }).y.y, 50);
+});
+
 test("portrait tags are the name alone; the wide plate keeps the stage line", () => {
   for (const n of [1, 7, 12, 15]) assert.equal(sceneLayout(trees(n), 375, 844).showStage, false);
   assert.equal(sceneLayout(trees(15), 1280, 800).showStage, true);
@@ -544,7 +600,7 @@ test("portrait labels stay on screen, clear of each other and of every other tru
     // A tag sits just under its own trunk base, at most 0.7 of its width to either side.
     for (const it of items) {
       const p = pos[it.id];
-      assert.ok(Math.abs(p.y - (it.footY + 6)) < 1e-9, `${vw}, ${n} trees: a tag left its trunk base`);
+      assert.ok([it.footY + 6, it.top - it.h - 6, it.top - it.h - 16].some((y) => Math.abs(p.y - y) < 1e-9), `${vw}, ${n} trees: a tag is neither under its trunk base nor above its tree`);
       assert.ok(Math.abs(p.x + it.w / 2 - it.footX) <= 1.1 * it.w + it.w / 2, `${vw}, ${n} trees: a tag drifted sideways`);
     }
     const rects = items.filter((it) => shown.has(it.id)).map((it) => ({ id: it.id, ...pos[it.id], w: it.w, h: it.h }));

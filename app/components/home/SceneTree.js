@@ -27,14 +27,16 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
   const fy = t.footY - t.top;
   const pos = label || { x: t.footX - 70, y: t.footY + 6 };
   // Portrait plate: a pin marks the trunk base and the tag sits under it.
-  // When the tag had to move aside, so the pin is no longer over it, a
-  // hairline runs from the pin to the tag's nearest top corner.
+  // When the tag had to move aside or above the tree, so the pin is no longer
+  // over it, a hairline runs from the pin to the tag's nearest edge.
   let lead = null;
   if (portrait && labelShown && pos.w) {
     const tx = Math.min(Math.max(t.footX, pos.x + 7), pos.x + pos.w - 7);
-    if (Math.abs(tx - t.footX) > 0.5) {
+    // A tag above its tree is always joined to the pin, at its lower edge.
+    const aboveTree = pos.y < t.footY;
+    if (aboveTree || Math.abs(tx - t.footX) > 0.5) {
       const dx = tx - t.footX;
-      const dy = pos.y - t.footY;
+      const dy = (aboveTree ? pos.y + (pos.h || 0) : pos.y) - t.footY;
       lead = { length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
     }
   }

@@ -107,6 +107,18 @@ export function layoutScene(concepts, plateW, plateH) {
 }
 
 const GAP = 6;
+// Whether a rect touches a canopy. A canopy marked `round` is the ellipse
+// inside its box (a tree's crown doesn't fill the corners of its drawing).
+function onCanopy(o, r) {
+  if (!o.round) return overlaps(o, r);
+  const cx = o.x + o.w / 2;
+  const cy = o.y + o.h / 2;
+  const px = Math.min(Math.max(cx, r.x), r.x + r.w);
+  const py = Math.min(Math.max(cy, r.y), r.y + r.h);
+  return ((px - cx) / (o.w / 2 + 3)) ** 2 + ((py - cy) / (o.h / 2 + 3)) ** 2 < 1;
+}
+// How much higher a tag above its tree may sit if just above is taken.
+const ABOVE_STEP = 10;
 // How far a leaning tag's near end reaches past its pin.
 const LABEL_LEAN = 10;
 const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4;
@@ -120,11 +132,14 @@ const overlaps = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b
 // label may cover except its own tree's: the portrait plate passes every
 // trunk base. With `beside` (the portrait plate, where nothing pans and the
 // meadow is crowded) a label never leaves its tree: it sits just under the
-// trunk base, nudged left or right if that's taken, and if none of those is
-// free it stays under the foot,
+// trunk base, nudged left or right if that's taken (or, to keep off a
+// neighbour's canopy, above its own tree), and if none of those is free it
+// stays under the foot,
 // where panLabels hides it rather than letting it drift across the scene.
+// `canopies` are the rects of grown trees a tag should keep off when it has
+// anywhere else to go; `crosses(rect)` says whether a rect lies across the path.
 // Returns { [id]: { x, y, out } }.
-export function placeLabels(items, band, obstacles = [], { beside = false } = {}) {
+export function placeLabels(items, band, obstacles = [], { beside = false, canopies = [], crosses = null } = {}) {
   const placed = [];
   const out = {};
   const clampX = (x, w) => Math.min(Math.max(x, band.minX), band.maxX - w);
@@ -135,6 +150,7 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
     const above = it.top - it.h - GAP;
     const step = it.h + GAP;
     let candidates;
+    let aboveTree = [];
     if (beside) {
       // A tag leans away from the path (`lean`: -1 left, 1 right), so it sits
       // on its tree's side with its near end just past the pin; if that's
@@ -142,17 +158,29 @@ export function placeLabels(items, band, obstacles = [], { beside = false } = {}
       const lean = it.lean || 0;
       const leaned = lean < 0 ? it.footX + LABEL_LEAN - it.w : lean > 0 ? it.footX - LABEL_LEAN : it.footX - it.w / 2;
       const centred = it.footX - it.w / 2;
+      // The path side (the mirror of the lean) is offered only where the
+      // tag wouldn't lie across the path.
+      const pathSide = lean < 0 ? it.footX - LABEL_LEAN : it.footX + LABEL_LEAN - it.w;
       const xs = lean
-        ? [leaned, leaned + lean * 0.3 * it.w, centred, leaned + lean * 0.6 * it.w, centred - lean * 0.4 * it.w]
+        ? [leaned, leaned + lean * 0.3 * it.w, centred, leaned + lean * 0.6 * it.w, pathSide, centred - lean * 0.4 * it.w]
         : [0, -0.4, 0.4, -0.7, 0.7].map((k) => centred + k * it.w);
       candidates = xs.map((cx) => ({ x: clampX(cx, it.w), y: below, w: it.w, h: it.h }));
+      if (lean && crosses) candidates = candidates.filter((r, n) => n !== 4 || !crosses(r));
+      // Above the tree: just above it, then a little higher.
+      aboveTree = [above, above - ABOVE_STEP].flatMap((y) => [centred, leaned].map((cx) => ({ x: clampX(cx, it.w), y, w: it.w, h: it.h })));
     } else {
       const ys = [below, above];
       for (let k = 1; k <= 4; k++) ys.push(below + k * step, above - k * step);
       candidates = ys.map((y) => ({ x, y, w: it.w, h: it.h }));
     }
     const blockers = [...placed, ...obstacles.filter((o) => o.id !== it.id)];
-    let pick = candidates.find((r) => inBand(r) && !blockers.some((p) => overlaps(p, r)));
+    // First choice: a free spot that also keeps off every other grown
+    // tree (`canopies`). Failing that, any free spot, as before.
+    const others = canopies.filter((o) => o.id !== it.id);
+    const free = (r) => inBand(r) && !blockers.some((p) => overlaps(p, r));
+    // Last before falling back: above the tree instead of under it.
+    const offCanopies = (r) => free(r) && !others.some((o) => onCanopy(o, r));
+    let pick = (others.length ? candidates.find(offCanopies) || aboveTree.find(offCanopies) : null) || candidates.find(free);
     if (!pick && beside) {
       pick = candidates[0];
     } else if (!pick) {
@@ -341,6 +369,8 @@ export function pathDistance(x, y, frame) {
   return best;
 }
 
+// What a 320-wide phone shows of the plate, and how much smaller it draws.
+const NARROW = { left: 0.168, right: 0.832, squeeze: 0.853 };
 const NEAR_Y = 0.77;
 const FAR_Y = 0.25;
 const depthAt = (y) => Math.min(1, Math.max(PORTRAIT.farDepth, PORTRAIT.farDepth + ((y - FAR_Y) / (NEAR_Y - FAR_Y)) * (1 - PORTRAIT.farDepth)));
@@ -375,60 +405,90 @@ export function portraitScale(n) {
   return atTwelve * Math.sqrt(12 / n);
 }
 
-// The spread order for a list of spots: one from the near third of the hill
-// they cover, one from the middle, one from the far, and round again, so a
-// grove uses the whole hill as it fills.
-function spread(spots) {
-  const ys = spots.map((p) => p.y);
-  const lo = Math.min(...ys);
-  const span = Math.max(...ys) - lo || 1;
-  const bands = [[], [], []];
-  for (const p of spots) bands[p.y > lo + (span * 2) / 3 ? 0 : p.y > lo + span / 3 ? 1 : 2].push(p);
-  const out = [];
-  for (let n = 0; out.length < spots.length; n++) for (const b of bands) if (n < b.length) out.push(b[n]);
-  return out;
-}
-
 // Where n trees stand and at what scale. Up to twelve: the tuned anchors.
 // Past twelve there are no more tuned anchors, so the spots are generated by
 // the same rules: rows from near to far, each a little more than a trunk's
 // height above the last, with a spot close to the path and one further out on
-// each side wherever the meadow has room, the sides taking turns. If the rows
-// can't hold them all, the scale steps down until they can. The spots are
-// handed out in the same spread order as the tuned anchors.
+// each side wherever the meadow has room. The two sides are kept in strict
+// alternation, so they never differ by more than one tree, and each side
+// fills over the whole hill (near, middle, far, and round again) as the
+// tuned anchors do. If the rows can't hold them all, the scale steps down
+// until they can.
 export function portraitSpots(n) {
   let scale = portraitScale(n);
   if (n <= PORTRAIT_ANCHORS.length) return { scale, spots: PORTRAIT_ANCHORS.slice(0, n) };
+  const want = { [-1]: Math.ceil(n / 2), 1: Math.floor(n / 2) };
   for (;;) {
-    const spots = [];
+    const found = { [-1]: [], 1: [] };
     let y = 0.77;
-    for (let row = 0; y >= FAR_Y && spots.length < n; row++) {
+    for (let row = 0; y >= FAR_Y; row++) {
       // The path's reach a little above and below this row too: where it
       // bends, the trunk has to clear the bend, not only the row's own edge.
-      const near = [-0.04, -0.02, 0, 0.02, 0.04].map((dy) => pathEdges(y + dy));
+      const near = [-0.02, -0.01, 0, 0.01, 0.02].map((dy) => pathEdges(y + dy));
       const e = { left: Math.min(...near.map((p) => p.left)), right: Math.max(...near.map((p) => p.right)) };
-      const sides = row % 2 ? [1, -1] : [-1, 1];
-      // A spot is used only if a full-grown tree fits there on the narrowest
-      // phone: wholly inside the part of the plate that phone shows (about
-      // 0.17 to 0.83 of its width) with its trunk clear of the path.
-      const w = 0.38 * depthAt(y) * scale;
-      // The closest a trunk can stand to the path, then a second spot further
-      // out; alternate rows start a little further out, so neighbouring rows
-      // don't line up.
-      const closest = (0.04 + 0.08 * w) / 0.85 + (row % 2 ? 0.07 : 0);
-      for (const off of [closest, closest + 0.21]) for (const side of sides) {
-        const x = side < 0 ? e.left - off * 0.85 : e.right + off * 0.85;
-        const fits = side < 0 ? x - w / 2 >= 0.176 : x + w / 2 <= 0.824;
-        if (fits && spots.length < n) spots.push(resolve({ side, off, y }));
+      // A full-grown tree's width here, as a share of the plate's width.
+      const w = 0.45 * depthAt(y) * scale;
+      // Sized for the narrowest phone, which shows the plate from NARROW.left
+      // to NARROW.right and draws everything NARROW.squeeze as large. On each
+      // side: a spot as close to the path as a trunk may stand (alternate
+      // rows a little further out, so neighbouring rows don't line up), and
+      // a second at the edge of the meadow if the two trunks stand well apart.
+      const own = pathEdges(y);
+      for (const side of [-1, 1]) {
+        const edge = side < 0 ? e.left : e.right;
+        const limit = side < 0 ? NARROW.left + 0.005 + 0.5 * w * NARROW.squeeze : NARROW.right - 0.005 - 0.5 * w * NARROW.squeeze;
+        const closest = edge + side * (0.03 + 0.08 * w * NARROW.squeeze);
+        if (side * (limit - closest) < 0) continue;
+        const x0 = side < 0 ? Math.max(limit, closest - (row % 2 ? 0.06 : 0)) : Math.min(limit, closest + (row % 2 ? 0.06 : 0));
+        const offOf = (x) => Math.abs(x - (side < 0 ? own.left : own.right)) / NARROW.squeeze;
+        found[side].push({ ...resolve({ side, off: offOf(x0), y }), k: 0, row });
+        if (Math.abs(limit - x0) >= 0.12) found[side].push({ ...resolve({ side, off: offOf(limit), y }), k: 1, row });
       }
       // At least a trunk's height up, and never less than the height floor
       // makes a trunk on a small screen.
       y -= Math.max(0.44 * PORTRAIT.fullHeight * depthAt(y) * scale, 0.03);
     }
-    if (spots.length >= n || scale < 0.2) return { scale, spots: spread(spots) };
+    if ((found[-1].length >= want[-1] && found[1].length >= want[1]) || scale < 0.2) {
+      // On each side, one spot from every row before any row's second spot.
+      const pick = (side) => [...found[side]].sort((p, q) => p.k - q.k || p.row - q.row).slice(0, want[side]);
+      const sides = { [-1]: pick(-1), 1: pick(1) };
+      const ys = [...sides[-1], ...sides[1]].map((p) => p.y);
+      const lo = Math.min(...ys);
+      const span = Math.max(...ys) - lo || 1;
+      // Each side in thirds of the hill; the left starts near and the right
+      // in the middle, so the first few trees already span it.
+      const inBands = (list, order) => {
+        const bands = [[], [], []];
+        for (const p of list) bands[p.y > lo + (span * 2) / 3 ? 0 : p.y > lo + span / 3 ? 1 : 2].push(p);
+        const out = [];
+        for (let m = 0; out.length < list.length; m++) for (const b of order) if (m < bands[b].length) out.push(bands[b][m]);
+        return out;
+      };
+      const left = inBands(sides[-1], [0, 2, 1]);
+      const right = inBands(sides[1], [1, 0, 2]);
+      const spots = [];
+      for (let m = 0; spots.length < left.length + right.length; m++) {
+        if (m < left.length) spots.push(left[m]);
+        if (m < right.length) spots.push(right[m]);
+      }
+      return { scale, spots };
+    }
     scale *= 0.94;
   }
 }
+
+// Whether a rect (scene px) lies across the path.
+export function crossesPath(r, frame) {
+  return PORTRAIT_PATH.some(([ry, rl, rr]) => {
+    const y = ry * frame.plateH;
+    return y >= r.y && y <= r.y + r.h && frame.plateLeft + rl * frame.plateW < r.x + r.w && frame.plateLeft + rr * frame.plateW > r.x;
+  });
+}
+
+// The part of a grown tree (stage 4 and up) a neighbour's tag should keep off:
+// the ellipse inside its drawing, less the grass at its foot.
+export const CANOPY_FROM_STAGE = 4;
+export const canopyOf = (t) => ({ id: t.id, round: true, x: t.left + t.w * 0.04, y: t.top, w: t.w * 0.92, h: t.h * 0.9 });
 
 // The part of a tree that must stay visible: the foot of its trunk. And the
 // part of a nearer tree that could hide it: its trunk, from the foot up to

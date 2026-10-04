@@ -3,7 +3,7 @@
 import React from "react";
 import Icon from "../Icon";
 import SceneTree from "./SceneTree";
-import { OPENING, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
+import { CANOPY_FROM_STAGE, OPENING, canopyOf, crossesPath, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
 
 // The grove scene: the painted plate full-bleed behind Home, with the trees
 // standing on their anchors and their labels. A portrait screen gets the tall
@@ -73,9 +73,9 @@ export default function GroveScene({ g }) {
     if (!el || !labelItems.current.length) return;
     const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current, labelObstacles.current);
     shownRef.current = res.shown;
-    const widths = Object.fromEntries(labelItems.current.map((it) => [it.id, it.w]));
+    const sizes = Object.fromEntries(labelItems.current.map((it) => [it.id, it]));
     for (const id of Object.keys(res.pos)) {
-      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = { ...res.pos[id], w: widths[id] };
+      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = { ...res.pos[id], w: sizes[id].w, h: sizes[id].h };
     }
     setLabels({ pos: { ...lastPos.current }, shown: res.shown });
   }, []);
@@ -99,7 +99,13 @@ export default function GroveScene({ g }) {
     // screen from the start, and no label may cover another tree's trunk base.
     labelObstacles.current = portrait ? layout.trees.map(trunkBase) : [];
     const edge = portrait ? 8 : 0;
-    labelSlots.current = placeLabels(items, { minX: edge, maxX: layout.width - edge, minY, maxY }, labelObstacles.current, { beside: portrait });
+    labelSlots.current = placeLabels(items, { minX: edge, maxX: layout.width - edge, minY, maxY }, labelObstacles.current, {
+      beside: portrait,
+      // A tag keeps off other grown trees where it can, and is only put on
+      // the path's side of its pin where it wouldn't lie across the path.
+      canopies: portrait ? layout.trees.filter((t) => t.stage >= CANOPY_FROM_STAGE).map(canopyOf) : [],
+      crosses: portrait ? (r) => crossesPath(r, layout.frame) : null,
+    });
     lastPos.current = {};
     shownRef.current = new Set();
     placeForScroll();
