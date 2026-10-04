@@ -14,6 +14,7 @@ files in this repo, not against the roadmap's prose alone.
 Every build stage starts in plan mode and waits for approval before writing
 any code.
 
-After every push: add a changelog row to the roadmap, move shipped items out
-of "Now", update the "Production as of" line, and sync the to-do list so it
-never disagrees with the roadmap.
+After every push: add one row to the changelog database (Notion: `flight
+school` → `grove` → `changelog`) with a page create, never edit another row,
+and update the "Production as of" line on the roadmap. Then move shipped items
+out of "Now" and sync the to-do list so it never disagrees with the roadmap.
