@@ -51,7 +51,8 @@ so only the service role can read or write. Migrations live in `supabase/migrati
 - `app/page.js` is a router; `app/lib/useGrove.js` owns all client state; one
   file per screen under `app/screens/`.
 - `app/api/anthropic/route.js` is the server proxy for the Anthropic key. Model
-  is `claude-sonnet-5`, set in `app/lib/ai.js`.
+  is `claude-sonnet-5-5` by default (`app/lib/settings.js`), switchable from
+  admin Tuning.
 - Three AI calls, all through the proxy: concept extraction from a photo,
   typed-topic breakdown, and the tutor turn. The whole conversation is resent
   each turn. The tutor returns `{ message, phase, understanding, options,

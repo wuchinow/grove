@@ -1,5 +1,5 @@
 // ---- Model pricing ----------------------------------------------------------
-// $ per million tokens, list price, as of Sept 2026. Update this table if a
+// $ per million tokens, list price, as of Oct 2026. Update this table if a
 // new model gets wired into callAPI (see app/lib/ai.js) - the admin
 // dashboard's cost estimate reads from here. This is an estimate: it doesn't
 // account for batch discounts, which Grove doesn't use. It does account for
@@ -8,6 +8,7 @@
 export const PRICING = {
   "claude-haiku-4-5-20251001": { input: 1, output: 5 },
   "claude-sonnet-5": { input: 2, output: 10 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
 };
 
 // Cache reads are priced at 0.1x the model's input rate, cache writes at
