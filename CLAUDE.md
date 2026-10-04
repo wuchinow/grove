@@ -1,5 +1,8 @@
 # Grove — instructions for Claude Code
 
+This repo's Claude Code sessions run on Opus 5.5, subagents included. Don't
+delegate to lower-tier models.
+
 Before touching any screen, read `UX-RULES.md` (repo root) and the runbook's
 "Product rules worth not breaking" section (Notion: `flight school` → `grove`
 → `runbook`). If a request conflicts with either, say so and flag the

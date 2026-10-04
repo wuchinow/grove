@@ -33,7 +33,7 @@ export async function callAPI(messages, system, kind) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-5",
+      model: "claude-sonnet-5-5",
       max_tokens: 2000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: cachedMessages,

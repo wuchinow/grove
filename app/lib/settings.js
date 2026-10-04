@@ -12,12 +12,13 @@
 // strings live: the Settings page renders its pills from this list, and the
 // PUT route below validates against it.
 export const MODELS = [
+  { id: "claude-sonnet-5-5", label: "Sonnet 5.5" },
   { id: "claude-sonnet-5", label: "Sonnet 5" },
   { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
 ];
 
 export const DEFAULT_SETTINGS = {
-  model: "claude-sonnet-5",          // must be a MODELS id
+  model: "claude-sonnet-5-5",        // must be a MODELS id
   effort: "low",                      // matches the tutor's effort before this setting existed
   starting_trees: 7,
   interest_analogies: true,

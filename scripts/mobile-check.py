@@ -112,7 +112,7 @@ ADMIN_STATS = {
 ADMIN_SETTINGS = {
     "fixed_costs": [{"id": "supabase-pro", "name": "Supabase Pro org fee", "amount": 5.0, "group": "Infrastructure", "note": ""}],
     "price_per_month": 4,
-    "tuning": {"model": "claude-sonnet-5", "effort": "low", "starting_trees": 7, "interest_analogies": True, "sample_grove": True},
+    "tuning": {"model": "claude-sonnet-5-5", "effort": "low", "starting_trees": 7, "interest_analogies": True, "sample_grove": True},
     "changeLog": [{"setting": "starting_trees", "old_value": "7", "new_value": "5", "changed_by": "admin", "created_at": "2026-09-12T10:00:00Z"}],
 }
 
