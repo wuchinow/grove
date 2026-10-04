@@ -4,6 +4,8 @@ import React from "react";
 import { C } from "../lib/theme";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
+import Card from "../components/ui/Card";
+import PillButton from "../components/ui/PillButton";
 import { STAGE_NAMES } from "../lib/growth";
 
 // A full screen rather than a sheet, so it matches Progress: back top-left, room
@@ -12,31 +14,31 @@ export default function Help({ g }) {
   const { student, profile, setEditingProfile, setFeedbackOpen, setScreen, setSetupAvatar, setSetupGrade, setSetupInterests } = g;
 
   const Step = ({ title, children }) => (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: "14px 16px", boxShadow: "0 3px 12px rgba(58,42,32,.05)" }}>
-      <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 14, color: C.ink, opacity: 0.85, lineHeight: 1.55 }}>{children}</div>
-    </div>
+    <Card style={{ padding: "15px 16px" }}>
+      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 14, color: C.sub, lineHeight: 1.6 }}>{children}</div>
+    </Card>
   );
 
   return (
     <Shell>
-      <div style={{ padding: "20px 20px 44px", flex: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "18px 18px 40px", flex: 1, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => setScreen("home")} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>&larr; My grove</button>
+          <PillButton variant="quiet" size="sm" onClick={() => setScreen("home")} style={{ flexShrink: 0 }}>&larr; My grove</PillButton>
           <Logo small />
         </div>
 
         <div className="fadeUp" style={{ marginTop: 22 }}>
-          <div className="disp" style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.2 }}>How Grove works</div>
-          <div style={{ color: C.sub, fontSize: 14, fontWeight: 700, marginTop: 6, lineHeight: 1.5 }}>Grove asks you questions instead of handing over answers. That is the whole idea.</div>
+          <div className="disp" style={{ fontSize: 28, fontWeight: 500, lineHeight: 1.2 }}>How Grove works</div>
+          <div style={{ color: C.sub, fontSize: 14.5, marginTop: 8, lineHeight: 1.55 }}>Grove asks you questions instead of handing you answers. That's the whole idea.</div>
         </div>
 
         <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
           <Step title="1. Add what you're studying">
-            Type a topic or paste a URL, or share photos, PDFs, Word docs, or text files. Grove pulls out the key ideas and plants a tree for each one.
+            Share a photo of your work, a PDF, a Word doc or a text file, or type a topic or paste a link. Grove finds the key ideas and plants a tree for each.
           </Step>
           <Step title="2. Tend a tree">
-            Tap any tree to start a session: one concept, about 4 to 5 questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
+            Tap a tree to start a session on that one idea, about four or five questions. Grove asks rather than tells, gives a hint if you're stuck, then has you explain it back.
           </Step>
           <Step title="3. Finish to grow it">
             Every completed session makes that tree one stage taller: {STAGE_NAMES.slice(1).map((s) => s.toLowerCase()).join(", ")}. Seven sessions gets it to full size.
@@ -55,19 +57,19 @@ export default function Help({ g }) {
         <div style={{ flex: 1, minHeight: 20 }} />
 
         {student && profile && (
-          <button onClick={() => {
+          <PillButton onClick={() => {
             setSetupGrade(profile.grade || "");
             const existing = Array.isArray(profile.interests) ? profile.interests : [];
             setSetupInterests([existing[0] || "", existing[1] || "", existing[2] || ""]);
             setSetupAvatar(profile.avatar || "");
             setScreen("home"); setEditingProfile(true);
-          }} style={{ marginTop: 18, width: "100%", border: `1.5px solid ${C.line}`, background: C.card, cursor: "pointer", padding: 14, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <Icon name="sprout" size={16} color={C.primaryDeep} /> Edit my grade &amp; interests
-          </button>
+          }} variant="outline" size="lg" full style={{ marginTop: 18 }}>
+            <Icon name="sprout" size={16} color={C.primary} /> Edit my grade &amp; interests
+          </PillButton>
         )}
-        <button onClick={() => setFeedbackOpen(true)} style={{ marginTop: 10, width: "100%", border: `1.5px solid ${C.line}`, background: "transparent", cursor: "pointer", padding: 14, borderRadius: 15, color: C.primaryDeep, fontWeight: 800, fontSize: 14.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <Icon name="feedback" size={16} color={C.primaryDeep} /> Send feedback
-        </button>
+        <PillButton variant="outline" size="lg" full onClick={() => setFeedbackOpen(true)} style={{ marginTop: 10 }}>
+          <Icon name="feedback" size={16} color={C.primary} /> Send feedback
+        </PillButton>
       </div>
     </Shell>
   );

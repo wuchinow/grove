@@ -8,13 +8,17 @@ import GroveSwitcher from "../components/GroveSwitcher";
 import AuthCard from "../components/AuthCard";
 import GroveHeader from "../components/home/GroveHeader";
 import GroveScene from "../components/home/GroveScene";
-import StudyInput from "../components/home/StudyInput";
+import ActionBar from "../components/home/ActionBar";
+import TopicCard from "../components/home/TopicCard";
 import TreeCard from "../components/home/TreeCard";
+import PillButton from "../components/ui/PillButton";
+import Toast from "../components/ui/Toast";
 
 export default function Home({ g }) {
-  const { activeGroveId, auth, authCard, clearGrove, concepts, error, exitPreview, grewIds, groves, grovesLoaded, openGrove, preview, saveState, selected, setAuthCard, startPreview, studyEverything, student } = g;
+  const { activeGroveId, auth, authCard, clearGrove, concepts, error, exitPreview, grewIds, groves, grovesLoaded, openGrove, preview, saveState, selected, setAuthCard, startPreview, student } = g;
   const [hideSample, setHideSample] = React.useState(false);
   const [switcherOpen, setSwitcherOpen] = React.useState(false);
+  const [topicOpen, setTopicOpen] = React.useState(false);
   const has = concepts.length > 0;
 
   // With exactly one grove, open it silently: no decision to make, so this
@@ -26,68 +30,84 @@ export default function Home({ g }) {
     if (groves.length === 1) openGrove(groves[0].id);
   }, [grovesLoaded, activeGroveId, preview, groves.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const footLink = { border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" };
+
+  // The status line that used to sit under the scene: save state or the guest
+  // nudge, and Clear grove. Not shown in the sample grove, whose banner
+  // already says nothing is saved.
+  const status = !preview && (
+    <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
+      {student ? (saveState === "error" ? <span style={{ color: C.coral }}>Couldn't save your grove. Check the connection.</span> : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={footLink}>sign in</button> to keep your grove</>)}
+      {has && <>{" · "}<button onClick={clearGrove} style={footLink}>Clear grove</button></>}
+    </div>
+  );
+  const legacy = auth.status === "legacy" && (
+    <div style={{ fontSize: 12, color: C.sub, marginTop: 4, lineHeight: 1.5 }}>
+      You're using a beta link. <button onClick={() => setAuthCard("signup")} style={footLink}>Create an account</button> with the username <b>{student}</b> to keep these trees.
+    </div>
+  );
+
+  // The scene fills the screen behind everything else here. The header, the
+  // notices under it and the bar float over it; the column between them lets
+  // taps through to the scene (see .sceneTopStack in ui.css).
   return (
     <Shell>
-      <GroveHeader g={g} setSwitcherOpen={setSwitcherOpen} />
-
-      {preview && (
-        <div style={{ margin: "14px 20px 0", background: C.soft, border: `1.5px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: C.primaryDeep, lineHeight: 1.45 }}>
-            A sample grove, so you can see what one looks like once it has grown. Nothing here is saved.
-          </div>
-          <button onClick={exitPreview} style={{ border: "none", background: C.card, color: C.primaryDeep, borderRadius: 10, padding: "9px 13px", cursor: "pointer", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>Done</button>
-        </div>
-      )}
-
-      {grewIds.length > 0 && (
-        <div className="fadeUp" style={{ margin: "14px 20px 0", background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 16, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 22px rgba(58,42,32,.10)" }}>
-          <Icon name="sprout" size={20} color={C.sageDeep} />
-          <div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>
-            Your grove grew. {grewIds.length} {grewIds.length === 1 ? "tree" : "trees"} stood a little taller.
-            {!student && <>{" "}<button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Save this grove</button></>}
-          </div>
-        </div>
-      )}
-
       <GroveScene g={g} />
 
-      <div style={{ padding: "18px 20px 40px" }}>
-        {error && <div style={{ marginBottom: 14, background: "#F5E0D2", color: "#9A4A28", padding: "12px 14px", borderRadius: 14, fontSize: 14, fontWeight: 600 }}>{error}</div>}
+      <div className="homeOverlay">
+        <GroveHeader g={g} setSwitcherOpen={setSwitcherOpen} />
 
-        {has && (
-          <button onClick={studyEverything} style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.amber}, ${C.amberDeep})`, color: "#3A2412", fontWeight: 800, fontSize: 16, marginBottom: 10, boxShadow: "0 12px 26px rgba(199,125,52,.36), 0 2px 5px rgba(150,90,30,.18)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" }}><Icon name="drop" size={18} color="#3A2412" /> Tend the whole grove</span>
-          </button>
-        )}
-
-        {!preview && (
-          <>
-            <StudyInput g={g} has={has} />
-
-            {!has && !hideSample && g.settings.sample_grove && (
-              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <button onClick={startPreview} style={{ flex: 1, background: "transparent", border: `1.5px dashed ${C.line}`, cursor: "pointer", padding: 12, borderRadius: 14, color: C.primary, fontWeight: 700, fontSize: 13.5 }}>
-                  See what a grown grove looks like
-                </button>
-                <button onClick={() => setHideSample(true)} aria-label="Hide this" style={{ border: "none", background: "transparent", color: C.stone, cursor: "pointer", fontSize: 18, padding: "8px 10px", flexShrink: 0 }}>&times;</button>
+        <div className="sceneTopStack">
+          {preview && (
+            <div style={{ alignSelf: "stretch", background: "rgba(228,234,217,.95)", borderRadius: 16, padding: "12px 12px 12px 16px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 20px rgba(31,56,36,.12)" }}>
+              <div style={{ flex: 1, fontSize: 13.5, fontWeight: 500, color: C.ink, lineHeight: 1.45 }}>
+                A sample grove, so you can see what one looks like once it has grown. Nothing here is saved.
               </div>
-            )}
-          </>
-        )}
+              <PillButton variant="outline" size="sm" onClick={exitPreview} style={{ background: C.card, flexShrink: 0 }}>Done</PillButton>
+            </div>
+          )}
 
-        <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 22 }}>
-          {preview ? "Sample grove · nothing is being saved" : student ? (saveState === "error" ? "Couldn't save your grove. Check the connection." : activeGroveId ? `Saving${saveState === "saving" ? "…" : ""}` : "") : (<>Guest · <button onClick={() => setAuthCard("signin")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>sign in</button> to keep your grove</>)}
-          {has && !preview && <>{" · "}<button onClick={clearGrove} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Clear grove</button></>}
-        </p>
-        {auth.status === "legacy" && (
-          <p style={{ textAlign: "center", color: "#B7A489", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
-            You're using a beta link. <button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: C.primary, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Create an account</button> with the username <b>{student}</b> to keep these trees.
-          </p>
-        )}
+          {grewIds.length > 0 && (
+            <Toast className="fadeUp" icon={<Icon name="sprout" size={20} color="#cfe3a8" />} style={{ alignSelf: "stretch" }}>
+              Your grove grew. {grewIds.length} {grewIds.length === 1 ? "tree" : "trees"} stood a little taller.
+              {!student && <>{" "}<button onClick={() => setAuthCard("signup")} style={{ border: "none", background: "transparent", padding: 0, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Save this grove</button></>}
+            </Toast>
+          )}
+
+          {has ? (
+            <div className="sceneChip">
+              <div style={{ fontSize: 12.5, fontWeight: 500, color: C.ink }}>{concepts.length} planted &middot; Taller = more sessions</div>
+              {status}
+              {legacy}
+            </div>
+          ) : (
+            <div className="sceneCard">
+              <div className="disp" style={{ fontSize: 24, fontWeight: 500, color: C.ink, lineHeight: 1.2 }}>A quiet, empty grove</div>
+              <div style={{ fontSize: 14, color: C.sub, marginTop: 6, lineHeight: 1.55 }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
+              {!preview && <div style={{ fontSize: 13, color: C.sub, marginTop: 8, lineHeight: 1.5 }}>You can share photos, PDFs, Word docs, or text files.</div>}
+              {!preview && !hideSample && g.settings.sample_grove && (
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <PillButton variant="outline" onClick={startPreview} style={{ flex: 1, minWidth: 0, border: `1px dashed ${C.stone}`, color: C.primary, fontSize: 13.5 }}>
+                    See what a grown grove looks like
+                  </PillButton>
+                  <button onClick={() => setHideSample(true)} aria-label="Hide this" style={{ border: "none", background: "transparent", color: C.stone, cursor: "pointer", fontSize: 18, padding: "8px 10px", flexShrink: 0 }}>&times;</button>
+                </div>
+              )}
+              {status && <div style={{ marginTop: 12 }}>{status}</div>}
+              {legacy}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Just above the bar. */}
+      {error && <Toast tone="warn" floating style={{ bottom: "calc(90px + env(safe-area-inset-bottom))" }}>{error}</Toast>}
+
+      <ActionBar g={g} has={has} onTopic={() => setTopicOpen(true)} />
 
       {selected && <TreeCard g={g} />}
 
+      {topicOpen && <TopicCard g={g} has={has} onClose={() => setTopicOpen(false)} />}
       {switcherOpen && <GroveSwitcher g={g} onClose={() => setSwitcherOpen(false)} />}
       {authCard && <AuthCard g={g} />}
     </Shell>

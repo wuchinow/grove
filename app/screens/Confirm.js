@@ -2,8 +2,12 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "../components/Tree";
+import TreeArt from "../components/TreeArt";
 import { Shell, Logo } from "../components/Shell";
+import Card, { Chip } from "../components/ui/Card";
+import Field from "../components/ui/Field";
+import PillButton from "../components/ui/PillButton";
+import Toast from "../components/ui/Toast";
 
 export default function Confirm({ g }) {
   const { addText, confirmConcepts, pending, setAddText, setPending, setScreen, subject } = g;
@@ -37,41 +41,42 @@ export default function Confirm({ g }) {
 
   return (
     <Shell>
-      <div style={{ padding: "20px 20px 30px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "18px 18px 28px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <Logo small />
-        <div className="fadeUp" style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1.5 }}>Here's what I found. Remove anything you don't need, or add your own.</div>
-          <div style={{ display: "inline-block", marginTop: 8, background: C.soft, color: C.primaryDeep, padding: "5px 12px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>{subject}</div>
+        <div className="fadeUp" style={{ marginTop: 22 }}>
+          <Chip>{subject}</Chip>
+          <div className="disp" style={{ fontSize: 26, fontWeight: 500, lineHeight: 1.2, marginTop: 12 }}>Here's what I found.</div>
+          <div style={{ fontSize: 14, color: C.sub, lineHeight: 1.55, marginTop: 6 }}>Keep what's useful. Remove the rest, or add your own.</div>
         </div>
 
         <div style={{ position: "relative", flex: 1, minHeight: 0, marginTop: 16 }}>
-          <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingBottom: 26, WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)", maskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)" }}>
+          <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingBottom: 26, WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)", maskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)" }}>
             {pending.map((c, i) => (
-              <div key={i} className="fadeUp" style={{ background: C.card, borderRadius: 16, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 3px 10px rgba(58,42,32,.05)" }}>
-                <Tree days={0} mastery={0} width={28} />
+              <Card key={i} className="fadeUp" style={{ padding: "11px 12px 11px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <TreeArt stage={0} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, overflowWrap: "anywhere" }}>{c.name}</div>
-                  {c.note && <div style={{ color: C.sub, fontSize: 12.5, marginTop: 1, overflowWrap: "anywhere" }}>{c.note}</div>}
+                  <div style={{ fontWeight: 500, fontSize: 15, overflowWrap: "anywhere" }}>{c.name}</div>
+                  {c.note && <div style={{ color: C.sub, fontSize: 12.5, marginTop: 2, overflowWrap: "anywhere" }}>{c.note}</div>}
                 </div>
-                <button onClick={() => handleRemove(i)} aria-label={`Remove ${c.name}`} style={{ border: "none", background: C.soft, color: C.primaryDeep, width: 28, height: 28, borderRadius: 999, cursor: "pointer", fontSize: 16, flexShrink: 0 }}>×</button>
-              </div>
+                <button onClick={() => handleRemove(i)} aria-label={`Remove ${c.name}`} className="uiClose" style={{ border: "none", background: "#eef0e6", color: C.ink, width: 30, height: 30, borderRadius: 999, fontSize: 17, lineHeight: 1, flexShrink: 0, padding: 0 }}>×</button>
+              </Card>
             ))}
 
             {adding ? (
               <div style={{ display: "flex", gap: 8 }}>
-                <input
+                <Field
                   autoFocus
                   value={addText}
                   onChange={(e) => setAddText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") commitAdd(); if (e.key === "Escape") { setAddText(""); setAdding(false); } }}
                   onBlur={() => { if (!addText.trim()) setAdding(false); }}
                   placeholder="Add a concept…"
-                  style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "11px 14px", fontSize: 16, outline: "none", background: C.card, fontFamily: "inherit" }}
+                  style={{ flex: 1, minWidth: 0, width: "auto" }}
                 />
-                <button onClick={commitAdd} style={{ border: "none", background: C.soft, color: C.primaryDeep, padding: "0 16px", borderRadius: 14, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>Add</button>
+                <PillButton variant="quiet" onClick={commitAdd} style={{ flexShrink: 0, height: 46 }}>Add</PillButton>
               </div>
             ) : (
-              <button onClick={() => setAdding(true)} style={{ border: `1.5px dashed ${C.line}`, background: "transparent", cursor: "pointer", textAlign: "left", padding: "12px 14px", borderRadius: 16, color: C.primary, fontWeight: 700, fontSize: 13.5 }}>
+              <button onClick={() => setAdding(true)} style={{ border: `1px dashed ${C.stone}`, background: "transparent", cursor: "pointer", textAlign: "left", padding: "13px 14px", borderRadius: 14, color: C.primary, fontWeight: 500, fontSize: 14 }}>
                 + Add your own concept
               </button>
             )}
@@ -79,16 +84,16 @@ export default function Confirm({ g }) {
         </div>
 
         {removed && (
-          <div className="fadeUp" style={{ marginTop: 10, background: C.ink, color: C.card, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Removed "{removed.item.name}"</span>
-            <button onClick={undoRemove} style={{ border: "none", background: "transparent", color: C.amber, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Undo</button>
-          </div>
+          <Toast floating className="fadeUp" style={{ bottom: "calc(118px + env(safe-area-inset-bottom))", maxWidth: "min(400px, calc(100% - 32px))" }}
+            action={<button onClick={undoRemove} style={{ border: "none", background: "transparent", color: "#d9e8b8", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, padding: 0 }}>Undo</button>}>
+            <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Removed "{removed.item.name}"</span>
+          </Toast>
         )}
 
-        <button onClick={confirmConcepts} disabled={!pending.length} style={{ marginTop: 14, width: "100%", border: "none", cursor: pending.length ? "pointer" : "default", padding: 16, borderRadius: 16, background: pending.length ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})` : C.line, color: "#FCEFE4", fontWeight: 800, fontSize: 16 }}>
+        <PillButton size="lg" full onClick={confirmConcepts} disabled={!pending.length} style={{ marginTop: 14 }}>
           {`Plant ${pending.length} ${pending.length === 1 ? "tree" : "trees"}`}
-        </button>
-        <button onClick={() => setScreen("home")} style={{ marginTop: 8, width: "100%", border: "none", background: "transparent", cursor: "pointer", color: C.sub, fontWeight: 700, fontSize: 14 }}>Back to grove</button>
+        </PillButton>
+        <button onClick={() => setScreen("home")} style={{ marginTop: 6, width: "100%", border: "none", background: "transparent", cursor: "pointer", color: C.sub, fontWeight: 500, fontSize: 14, padding: 8 }}>Back to my grove</button>
       </div>
     </Shell>
   );

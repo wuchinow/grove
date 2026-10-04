@@ -230,6 +230,69 @@ def mock_signed_in(page, groves=None, grove=None):
     return grove
 
 
+def open_add_sheet(page):
+    """Once a grove has trees, the Home bar is one row: "Tend the whole grove"
+    and a round "+" (aria-label "Add to your grove"). "Share your work" and
+    "Type a topic" then live in the sheet the "+" opens, so that has to be
+    opened first. An empty grove still shows both in the bar itself, and
+    this does nothing."""
+    add = page.get_by_role("button", name="Add to your grove")
+    if add.count() and add.is_visible():
+        add.click()
+
+
+def open_topic_field(page):
+    """The typed-topic field sits behind the Home bar's "Type a topic" button
+    (redesign branch). The bar is fixed to the bottom of the screen and a text
+    field there would end up under the iOS keyboard, so the field opens in a
+    card instead. Returns the field, ready to fill."""
+    open_add_sheet(page)
+    page.get_by_role("button", name="Type a topic").click()
+    return page.get_by_placeholder("A topic, or paste a URL")
+
+
+def assert_tree_art(page, label, at_least=1):
+    """Every tree outside the Home scene is the painted cut-out (TreeArt). The
+    old code-drawn tree (Tree.js, an <svg viewBox="0 0 100 132">) is gone, so
+    none may render, and every painted tree's image must have loaded."""
+    page.wait_for_function("[...document.querySelectorAll('.treeArt img')].every((i) => i.complete)", timeout=10000)
+    art = page.evaluate("""
+    () => ({
+      old: document.querySelectorAll('svg[viewBox="0 0 100 132"]').length,
+      trees: [...document.querySelectorAll('.treeArt img')].map((i) => ({ src: i.getAttribute('src'), alt: i.alt, loaded: i.naturalWidth > 0 })),
+    })
+    """)
+    assert art["old"] == 0, f"[{label}] {art['old']} old vector tree(s) still render"
+    assert len(art["trees"]) >= at_least, f"[{label}] expected at least {at_least} painted tree(s), found {len(art['trees'])}"
+    broken = [t for t in art["trees"] if not t["loaded"] or not t["alt"]]
+    assert not broken, f"[{label}] painted trees that didn't load or have no alt text: {broken}"
+
+
+def assert_bar_fits(page, width, label):
+    """The Home bar must sit inside the viewport with every button inside the
+    bar - the three labels are the widest thing on Home at 320px."""
+    box = page.evaluate("""
+    () => {
+      const bar = document.querySelector('.actionBar');
+      if (!bar) return null;
+      const r = bar.getBoundingClientRect();
+      const buttons = [...bar.querySelectorAll('button')].map((b) => {
+        const br = b.getBoundingClientRect();
+        return { text: b.innerText.trim(), left: br.left, right: br.right, top: br.top, clipped: b.scrollWidth > b.clientWidth + 1 };
+      });
+      return { left: r.left, right: r.right, bottom: r.bottom, vh: window.innerHeight, buttons, docWidth: document.documentElement.scrollWidth };
+    }
+    """)
+    assert box, f"[{label}] no .actionBar on Home"
+    assert box["left"] >= 0 and box["right"] <= width + 0.5, f"[{label}] Home bar runs off the screen: {box}"
+    assert box["bottom"] <= box["vh"], f"[{label}] Home bar sits below the viewport: {box}"
+    assert box["docWidth"] <= width, f"[{label}] Home scrolls sideways ({box['docWidth']}px wide)"
+    tops = {round(b["top"]) for b in box["buttons"]}
+    assert len(tops) <= 1, f"[{label}] the Home bar isn't one row: button tops {sorted(tops)}"
+    for b in box["buttons"]:
+        assert b["left"] >= box["left"] and b["right"] <= box["right"] + 0.5 and not b["clipped"], f"[{label}] bar button {b['text']!r} doesn't fit: {b}"
+
+
 def run(base_url: str, out_dir: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
@@ -248,12 +311,14 @@ def run(base_url: str, out_dir: Path):
                 guest_btn.click()
 
             page.screenshot(path=str(out_dir / f"home-{width}.png"), full_page=True)
+            assert_bar_fits(page, width, f"{width}px")
 
-            topic_input = page.get_by_placeholder("A topic, or paste a URL")
+            topic_input = open_topic_field(page)
             topic_input.fill("Test topic")
             topic_input.press("Enter")
             page.wait_for_selector("text=Here's what I found", timeout=10000)
             page.screenshot(path=str(out_dir / f"confirm-{width}.png"), full_page=True)
+            assert_tree_art(page, f"confirm {width}px", at_least=2)
 
             # The dashed "Add your own concept" card, opened inline.
             add_btn = page.get_by_text("+ Add your own concept")
@@ -267,6 +332,7 @@ def run(base_url: str, out_dir: Path):
             page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
             page.wait_for_selector("text=What is 2 + 2", timeout=10000)
             page.screenshot(path=str(out_dir / f"tutor-{width}.png"), full_page=True)
+            assert_tree_art(page, f"tutor {width}px")
 
             # Snake only shows in AccountMenu for signed-in/legacy students
             # (guests get a plain "Sign in" button, no "Account" dropdown at
@@ -392,6 +458,7 @@ def run_photo_review(base_url: str, out_dir: Path):
                 if guest_btn.count():
                     guest_btn.click()
 
+                open_add_sheet(page)
                 page.get_by_text("Share your work").click()
                 page.locator('input[type="file"]').set_input_files(files[:5])
                 page.wait_for_selector("text=Review your pages", timeout=10000)
@@ -498,7 +565,7 @@ def run_header_long_name(base_url: str, out_dir: Path):
             body=anthropic_body({"subject": "Music theory", "concepts": [{"name": "Intervals", "note": "n"}]}),
         ))
         page.goto(base_url, wait_until="networkidle")
-        topic_input = page.get_by_placeholder("A topic, or paste a URL")
+        topic_input = open_topic_field(page)
         topic_input.fill("Music theory")
         topic_input.press("Enter")
         page.wait_for_selector("text=Here's what I found", timeout=10000)
@@ -738,7 +805,7 @@ def run_grove_ops(base_url: str):
             if guest_btn.count():
                 guest_btn.click()
             for planted in (2, 4):
-                topic_input = page.get_by_placeholder("A topic, or paste a URL")
+                topic_input = open_topic_field(page)
                 topic_input.fill("Test topic")
                 topic_input.press("Enter")
                 page.wait_for_selector("text=Here's what I found", timeout=10000)

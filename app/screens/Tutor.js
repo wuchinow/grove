@@ -2,11 +2,15 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import { statusOf, growthLabel, canopyColor } from "../lib/ai";
-import Tree from "../components/Tree";
+import { growthLabel } from "../lib/ai";
+import TreeArt from "../components/TreeArt";
+import { stageOf } from "../lib/growth";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 import StaffNotation from "../components/StaffNotation";
+import Card from "../components/ui/Card";
+import Field from "../components/ui/Field";
+import PillButton from "../components/ui/PillButton";
 
 // The tutor is asked to bold its own question, but that's a prompt
 // instruction, not a guarantee - it's dropped it intermittently even after a
@@ -116,10 +120,10 @@ function ProgressBar({ chat, phase }) {
   const total = done ? asked : Math.max(SOFT_TARGET, asked);
   return (
     <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, flexShrink: 0 }}>{progressLabel(asked, done)}</div>
+      <div style={{ fontSize: 11.5, fontWeight: 500, color: C.sub, flexShrink: 0 }}>{progressLabel(asked, done)}</div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         {Array.from({ length: total }, (_, i) => (
-          <span key={i} style={{ width: 18, height: 5, borderRadius: 999, background: i < asked ? C.primary : C.line, flexShrink: 0 }} />
+          <span key={i} style={{ width: 18, height: 4, borderRadius: 999, background: i < asked ? C.primary : C.line, flexShrink: 0 }} />
         ))}
       </div>
     </div>
@@ -168,13 +172,13 @@ function TurnControls({ opts, busy, send }) {
       {opts.length > 0 && (
         <div style={{ display: twoUp ? "flex" : "block", gap: 8 }}>
           {opts.map((o, i) => (
-            <button key={i} onClick={() => send(o)} disabled={busy} style={{ display: "block", width: "100%", marginBottom: twoUp ? 0 : 8, flex: twoUp ? 1 : undefined, border: `1.5px solid ${C.line}`, background: C.card, borderRadius: 14, padding: "13px 15px", fontWeight: 700, fontSize: 15, color: C.ink, textAlign: twoUp ? "center" : "left", cursor: busy ? "default" : "pointer", overflowWrap: "anywhere" }}>{o}</button>
+            <Card as="button" key={i} onClick={() => send(o)} disabled={busy} style={{ marginBottom: twoUp ? 0 : 8, flex: twoUp ? 1 : undefined, borderRadius: 13, padding: "13px 15px", fontWeight: 500, fontSize: 15, textAlign: twoUp ? "center" : "left", cursor: busy ? "default" : "pointer", overflowWrap: "anywhere" }}>{o}</Card>
           ))}
         </div>
       )}
       <div style={{ display: "flex", gap: 18, marginTop: opts.length ? 10 : 4, justifyContent: opts.length ? "center" : "flex-start" }}>
-        <button onClick={() => send("Can I get a hint?")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.primaryDeep, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>Hint</button>
-        <button onClick={() => send("I don't know")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 700, fontSize: 13, color: C.sub, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>I don't know</button>
+        <button onClick={() => send("Can I get a hint?")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 500, fontSize: 13.5, color: C.primary, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>Hint</button>
+        <button onClick={() => send("I don't know")} disabled={busy} style={{ border: "none", background: "transparent", padding: 4, fontWeight: 500, fontSize: 13.5, color: C.sub, cursor: busy ? "default" : "pointer", textDecoration: "underline" }}>I don't know</button>
       </div>
     </div>
   );
@@ -187,6 +191,7 @@ export default function Tutor({ g }) {
   const lastIsLiveTurn = chat.length > 0 && chat[chat.length - 1].who === "tutor" && !done;
   const opts = lastIsLiveTurn && Array.isArray(lastTutor.options) ? lastTutor.options : [];
   const vv = useVisualViewport();
+  const canSend = !busy && !!input.trim();
   const lastTutorRef = React.useRef(null);
   const [showMore, setShowMore] = React.useState(false);
 
@@ -225,17 +230,17 @@ export default function Tutor({ g }) {
       <div className="fullvh" style={{ position: "fixed", top: vv.offsetTop || 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 600, height: vv.height ? `${vv.height}px` : undefined, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "14px 18px 12px", background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button onClick={leaveSession} style={{ border: "none", background: C.soft, color: C.primaryDeep, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontWeight: 800, fontSize: 13 }}>← Back to my grove</button>
-            <div style={{ color: C.sub, fontSize: 13, fontWeight: 700, textAlign: "right" }}>
+            <PillButton variant="quiet" size="sm" onClick={leaveSession}>← Back to my grove</PillButton>
+            <div style={{ color: C.sub, fontSize: 13, textAlign: "right" }}>
               <div>Tree {sessionPos.current + 1} of {sessionTotal.current}</div>
             </div>
           </div>
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: C.bg, borderRadius: 12, padding: 2 }}><Tree days={active ? active.days : 0} mastery={active ? active.mastery : 0} width={44} /></div>
-            <div style={{ flex: 1 }}>
-              <div className="disp" style={{ fontSize: 18, fontWeight: 600 }}>{active ? active.name : ""}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginTop: 2 }}>
-                {active ? `${growthLabel(active.days)} · ${statusOf(active.mastery)}` : ""}
+            <div style={{ background: C.soft, borderRadius: 12, padding: 4, flexShrink: 0 }}><TreeArt stage={active ? stageOf(active.days) : 0} size={50} concept={active} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="disp" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, overflowWrap: "anywhere" }}>{active ? active.name : ""}</div>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 3 }}>
+                {active ? growthLabel(active.days) : ""}
               </div>
             </div>
           </div>
@@ -249,10 +254,10 @@ export default function Tutor({ g }) {
               return m.who === "tutor" ? (
                 <div key={i} ref={isLastTutor ? lastTutorRef : null}>
                   <div className="fadeUp" style={{ alignSelf: "flex-start", maxWidth: "86%", display: "flex", gap: 8 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
-                    <div style={{ background: C.card, padding: "12px 14px", borderRadius: "4px 16px 16px 16px", boxShadow: "0 3px 10px rgba(58,42,32,.06)", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere", minWidth: 0 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 999, background: C.primary, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={15} color="#fff" /></div>
+                    <div style={{ background: C.card, border: `1px solid ${C.line}`, padding: "12px 14px", borderRadius: "4px 18px 18px 18px", boxShadow: "0 3px 10px rgba(31,56,36,.05)", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere", minWidth: 0 }}>
                       {m.phase && m.phase !== "question" && m.phase !== "done" && (
-                        <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: C.primary, marginBottom: 4 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
+                        <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1.5px", color: C.sub, marginBottom: 5 }}>{m.phase === "check" ? "your turn" : m.phase}</span>
                       )}
                       {m.visual && m.visual.type === "staff" && (
                         <div style={{ marginBottom: 8 }}>
@@ -265,13 +270,13 @@ export default function Tutor({ g }) {
                   {isLastTutor && !busy && !done && <TurnControls opts={opts} busy={busy} send={send} />}
                 </div>
               ) : (
-                <div key={i} className="fadeUp" style={{ alignSelf: "flex-end", maxWidth: "86%", background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", padding: "12px 14px", borderRadius: "16px 4px 16px 16px", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere" }}>{m.text}</div>
+                <div key={i} className="fadeUp" style={{ alignSelf: "flex-end", maxWidth: "86%", background: C.primary, color: "#fff", padding: "12px 14px", borderRadius: "18px 4px 18px 18px", fontSize: 15, lineHeight: 1.45, overflowWrap: "anywhere" }}>{m.text}</div>
               );
             })}
             {busy && (
               <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "center" }}>
-                <div style={{ width: 30, height: 30, borderRadius: 10, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, display: "grid", placeItems: "center" }}><Icon name="tree" size={15} color="#FCEFE4" /></div>
-                <div style={{ background: C.card, padding: "13px 16px", borderRadius: 16, boxShadow: "0 3px 10px rgba(58,42,32,.06)", color: C.sub, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "baseline", gap: 7 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 999, background: C.primary, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="tree" size={15} color="#fff" /></div>
+                <div style={{ background: C.card, border: `1px solid ${C.line}`, padding: "13px 16px", borderRadius: 18, boxShadow: "0 3px 10px rgba(31,56,36,.05)", color: C.sub, fontSize: 13.5, fontWeight: 500, display: "flex", alignItems: "baseline", gap: 7 }}>
                   <span>{busyLabel(chat, active)}</span>
                   <span style={{ display: "inline-flex", gap: 3 }}>
                     <span className="dotPulse" style={{ animationDelay: "0s" }} />
@@ -285,26 +290,28 @@ export default function Tutor({ g }) {
           {showMore && (
             <button
               onClick={() => { const el = scrollRef.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }}
-              style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 999, background: C.ink, color: C.card, fontWeight: 800, fontSize: 12, boxShadow: "0 6px 16px rgba(40,24,12,.28)", display: "flex", alignItems: "center", gap: 5 }}
+              style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 999, background: C.ink, color: "#fff", fontWeight: 500, fontSize: 12.5, boxShadow: "0 6px 16px rgba(20,44,57,.25)", display: "flex", alignItems: "center", gap: 5 }}
             >
-              More <Icon name="chevronDown" size={12} color={C.card} strokeWidth={3} />
+              More <Icon name="chevronDown" size={12} color="#fff" strokeWidth={2.6} />
             </button>
           )}
         </div>
 
         <div style={{ padding: "12px 14px", paddingBottom: "max(16px, env(safe-area-inset-bottom))", background: C.card, borderTop: `1px solid ${C.line}`, flexShrink: 0 }}>
           {failed ? (
-            <button onClick={() => startConcept(activeId)} style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16 }}>
+            <PillButton size="lg" full onClick={() => startConcept(activeId)}>
               Try again
-            </button>
+            </PillButton>
           ) : done ? (
-            <button onClick={nextConcept} className="pop" style={{ width: "100%", border: "none", cursor: "pointer", padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDeep})`, color: "#FCEFE4", fontWeight: 800, fontSize: 16, boxShadow: "0 8px 20px rgba(120,66,37,.36)" }}>
+            <PillButton size="lg" full onClick={nextConcept} className="pop">
               {queue.length > 1 ? "Next tree" : "Back to my grove"}
-            </button>
+            </PillButton>
           ) : (
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Type your answer…" disabled={busy} style={{ flex: 1, minWidth: 0, border: `1.5px solid ${C.line}`, borderRadius: 14, padding: "13px 15px", fontSize: 16, outline: "none", fontFamily: "inherit", background: C.bg }} />
-              <button onClick={() => send()} disabled={busy || !input.trim()} style={{ border: "none", cursor: busy || !input.trim() ? "default" : "pointer", width: 50, flexShrink: 0, borderRadius: 14, background: input.trim() && !busy ? C.primary : C.line, color: "#FCEFE4", fontSize: 20, fontWeight: 800, display: "grid", placeItems: "center" }} aria-label="Send"><Icon name="arrowUp" size={19} color="#FCEFE4" /></button>
+              <Field value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Type your answer…" disabled={busy} style={{ flex: 1, minWidth: 0, width: "auto", borderRadius: 999, padding: "12px 16px", background: C.bg }} />
+              {/* Disabled keeps full opacity: the sage fill and muted arrow
+                  stay legible (about 4:1) instead of fading to nothing. */}
+              <PillButton onClick={() => send()} disabled={!canSend} aria-label="Send" style={{ width: 48, height: 48, padding: 0, flexShrink: 0, opacity: 1, background: canSend ? C.primary : C.soft }}><Icon name="arrowUp" size={19} color={canSend ? "#fff" : C.sub} /></PillButton>
             </div>
           )}
         </div>

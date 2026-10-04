@@ -1,6 +1,8 @@
 // ---- Grove backdrop --------------------------------------------------------
-// A redwood cathedral with light breaking through. Deliberately low-contrast and
-// low-detail: it is a setting for the trees, never competition for them.
+// Tall trunks in morning haze with light breaking through. Deliberately
+// low-contrast and low-detail: it is a setting for the trees, never competition
+// for them. A placeholder in the redesign's greens until the illustrated
+// landscape replaces it; the drawing is the same, only the colours changed.
 export default function GroveBackdrop() {
   const W = 430, H = 300, groundTop = 208;
   // Trunks run past the horizon so the grass band, which rises and falls across
@@ -17,43 +19,43 @@ export default function GroveBackdrop() {
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" width="100%" height="100%" style={{ position: "absolute", inset: 0, display: "block" }}>
       <defs>
         <linearGradient id="gvSky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4A3720" />
-          <stop offset="32%" stopColor="#B98C4E" />
-          <stop offset="54%" stopColor="#EBCA88" />
-          <stop offset="78%" stopColor="#C99E5C" />
-          <stop offset="100%" stopColor="#8E6639" />
+          <stop offset="0%" stopColor="#dfe8d2" />
+          <stop offset="32%" stopColor="#e9efdf" />
+          <stop offset="54%" stopColor="#f1f5e8" />
+          <stop offset="78%" stopColor="#e3ebd3" />
+          <stop offset="100%" stopColor="#d3dfbf" />
         </linearGradient>
         <radialGradient id="gvSun" cx="50%" cy="24%" r="50%">
-          <stop offset="0%" stopColor="#FFF8E1" stopOpacity="0.95" />
-          <stop offset="38%" stopColor="#FBE7B0" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#FBE7B0" stopOpacity="0" />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+          <stop offset="38%" stopColor="#fbfdf3" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#fbfdf3" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="gvGrass" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4C7A3A" />
-          <stop offset="100%" stopColor="#2C5324" />
+          <stop offset="0%" stopColor="#b7cc95" />
+          <stop offset="100%" stopColor="#95b170" />
         </linearGradient>
       </defs>
 
       <rect x="0" y="0" width={W} height={groundTop + 26} fill="url(#gvSky)" />
 
       {/* distant trunks, hazy */}
-      {trunk(150, 22, 12, "#6E4E32", 0.34, "#A47E52")}
-      {trunk(62, 34, 20, "#7A5A3A", 0.46, "#B08A5A")}
-      {trunk(372, 42, 24, "#775638", 0.5, "#B08654")}
+      {trunk(150, 22, 12, "#a9bb9c", 0.34, "#c6d3bb")}
+      {trunk(62, 34, 20, "#a3b796", 0.46, "#c3d1b8")}
+      {trunk(372, 42, 24, "#a3b796", 0.5, "#c3d1b8")}
 
       {/* light breaking through the canopy */}
       <rect x="0" y="0" width={W} height={groundTop} fill="url(#gvSun)" />
-      <polygon points="215,26 148,208 204,208" fill="#FFF6DC" opacity="0.09" />
-      <polygon points="215,26 252,208 308,208" fill="#FFF6DC" opacity="0.075" />
+      <polygon points="215,26 148,208 204,208" fill="#ffffff" opacity="0.16" />
+      <polygon points="215,26 252,208 308,208" fill="#ffffff" opacity="0.13" />
 
       {/* near framing trunks */}
-      {trunk(20, 58, 32, "#59351F", 0.9, "#89512F")}
-      {trunk(414, 64, 34, "#53321D", 0.92, "#834D2B")}
-      {trunk(302, 28, 17, "#5D391F", 0.78, "#8D562F")}
+      {trunk(20, 58, 32, "#8ea587", 0.9, "#b1c2a8")}
+      {trunk(414, 64, 34, "#8aa283", 0.92, "#adbfa4")}
+      {trunk(302, 28, 17, "#97ac8e", 0.78, "#b7c7ad")}
 
       {/* ground: a single soft band of grass, no decorative detail */}
       <path d={`M0 ${groundTop + 4} Q ${W * 0.28} ${groundTop - 8} ${W * 0.56} ${groundTop + 5} T ${W} ${groundTop + 1} L ${W} ${H} L0 ${H} Z`} fill="url(#gvGrass)" />
-      <path d={`M0 ${groundTop + 4} Q ${W * 0.28} ${groundTop - 8} ${W * 0.56} ${groundTop + 5} T ${W} ${groundTop + 1}`} stroke="#5C8C43" strokeWidth="2" fill="none" opacity="0.5" />
+      <path d={`M0 ${groundTop + 4} Q ${W * 0.28} ${groundTop - 8} ${W * 0.56} ${groundTop + 5} T ${W} ${groundTop + 1}`} stroke="#c9dbab" strokeWidth="2" fill="none" opacity="0.7" />
     </svg>
   );
 }

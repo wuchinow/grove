@@ -1,35 +1,155 @@
 "use client";
 
 import React from "react";
-import { C } from "../../lib/theme";
-import Tree from "../Tree";
 import Icon from "../Icon";
-import GroveBackdrop from "../GroveBackdrop";
+import SceneTree from "./SceneTree";
+import { CANOPY_FROM_STAGE, OPENING, canopyOf, crossesPath, openingMove, panLabels, placeLabels, sceneLayout, trunkBase } from "../../lib/scene";
 
-// The grove scene: the backdrop, the scrolling row of trees with their labels,
-// the legend (or the empty-grove copy), and the stats strip under it.
+// The grove scene: the painted plate full-bleed behind Home, with the trees
+// standing on their anchors and their labels. A portrait screen gets the tall
+// plate, which fits the screen and doesn't pan; any other screen gets the
+// wide plate, which pans sideways, with the two chevrons that pan it. Home's header, notices and bar
+// float above it. Where everything goes is worked out in lib/scene.js; this
+// measures the viewport and the labels, and draws.
 export default function GroveScene({ g }) {
-  const { concepts, grewIds, justPlantedIds, setSelected } = g;
+  const { activeGroveId, concepts, grewIds, justPlantedIds, preview, setSelected } = g;
   const has = concepts.length > 0;
-  const ordered = [...concepts].sort((a, b) => b.days - a.days || b.mastery - a.mastery);
   const treeRowRef = React.useRef(null);
+  const labelRefs = React.useRef({});
+  // What openingMove (lib/scene.js) has done so far, and whether the student
+  // has scrolled the scene themselves.
+  const opening = React.useRef(OPENING);
+  // Label state across scroll frames: each label's slot and size (decided
+  // once per layout), which labels were shown last frame, and where each was
+  // last shown, so a hiding label fades out where it was.
+  const labelItems = React.useRef([]);
+  const labelSlots = React.useRef({});
+  const labelObstacles = React.useRef([]);
+  const shownRef = React.useRef(new Set());
+  const lastPos = React.useRef({});
+  const frame = React.useRef(0);
+  const [view, setView] = React.useState(null);
+  const [fontsReady, setFontsReady] = React.useState(false);
+  const [labels, setLabels] = React.useState({ pos: {}, shown: new Set() });
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
 
+  // Explicit pixel sizes from the real viewport, never aspect-ratio.
+  React.useLayoutEffect(() => {
+    const measure = () => setView({ vw: window.innerWidth, vh: window.innerHeight });
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // Labels are measured to be placed. A label measured before the web fonts
+  // arrive is the wrong size (the fallback face wraps differently), so the
+  // layout is measured again once they're in.
+  React.useEffect(() => {
+    let live = true;
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (live) setFontsReady(true); });
+    return () => { live = false; };
+  }, []);
+
+  const layout = view ? sceneLayout(concepts, view.vw, view.vh) : null;
+  const plate = layout ? layout.plate : null;
+  const offsetTop = layout ? layout.offsetTop : 0;
+  const portrait = !!layout && layout.kind === "portrait";
+  const layoutKey = layout ? `${layout.kind}|${view.vw}x${view.vh}|${fontsReady ? "fonts" : "fallback"}|${concepts.map((c) => `${c.id}:${c.days}:${c.name}`).join("|")}` : "";
+
   // Measures the real scroll position rather than guessing from tree count,
-  // since how many fit without scrolling depends on the actual screen width.
+  // since how much of the plate fits depends on the actual screen width.
   const updateScrollState = React.useCallback(() => {
     const el = treeRowRef.current;
     if (!el) { setCanScrollLeft(false); setCanScrollRight(false); return; }
     setCanScrollLeft(el.scrollLeft > 2);
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
   }, []);
-  React.useLayoutEffect(() => { updateScrollState(); }, [ordered.length, updateScrollState]);
-  React.useEffect(() => {
-    window.addEventListener("resize", updateScrollState);
-    return () => window.removeEventListener("resize", updateScrollState);
-  }, [updateScrollState]);
-  const scrolls = canScrollLeft || canScrollRight;
+
+  // Where the labels go for the current scroll position: each keeps its slot
+  // and only slides sideways (panLabels in lib/scene.js).
+  const placeForScroll = React.useCallback(() => {
+    const el = treeRowRef.current;
+    if (!el || !labelItems.current.length) return;
+    const res = panLabels(labelItems.current, labelSlots.current, { sx: el.scrollLeft, vw: el.clientWidth }, shownRef.current, labelObstacles.current);
+    shownRef.current = res.shown;
+    const sizes = Object.fromEntries(labelItems.current.map((it) => [it.id, it]));
+    for (const id of Object.keys(res.pos)) {
+      if (res.shown.has(id) || !lastPos.current[id]) lastPos.current[id] = { ...res.pos[id], w: sizes[id].w, h: sizes[id].h };
+    }
+    setLabels({ pos: { ...lastPos.current }, shown: res.shown });
+  }, []);
+
+  // Labels: measured after render, then given vertical slots clear of each
+  // other and of the floating notices and bar (in plate pixels), once per
+  // layout. Runs before paint, so the first placement is never seen.
+  React.useLayoutEffect(() => {
+    if (!layout) return;
+    const bar = document.querySelector(".actionBar");
+    const stack = document.querySelector(".sceneTopStack");
+    // Labels keep clear of the notices: 8px on the wide plate, 12 on the portrait one.
+    const minY = (stack ? stack.getBoundingClientRect().bottom : 120) + (portrait ? 12 : 8) - offsetTop;
+    const maxY = (bar ? bar.getBoundingClientRect().top : view.vh) - 8 - offsetTop;
+    const items = layout.trees.map((t) => {
+      const el = labelRefs.current[t.id];
+      return { id: t.id, footX: t.footX, footY: t.footY, top: t.top, lean: t.side || 0, w: el ? el.offsetWidth : 140, h: el ? el.offsetHeight : 42 };
+    });
+    labelItems.current = items;
+    // On the portrait plate nothing pans, so the slots are clamped to the
+    // screen from the start, and no label may cover another tree's trunk base.
+    labelObstacles.current = portrait ? layout.trees.map(trunkBase) : [];
+    const edge = portrait ? 8 : 0;
+    labelSlots.current = placeLabels(items, { minX: edge, maxX: layout.width - edge, minY, maxY }, labelObstacles.current, {
+      beside: portrait,
+      // A tag keeps off other grown trees where it can, and is only put on
+      // the path's side of its pin where it wouldn't lie across the path.
+      canopies: portrait ? layout.trees.filter((t) => t.stage >= CANOPY_FROM_STAGE).map(canopyOf) : [],
+      crosses: portrait ? (r) => crossesPath(r, layout.frame) : null,
+    });
+    lastPos.current = {};
+    shownRef.current = new Set();
+    placeForScroll();
+  }, [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scrolling re-places the labels at most once a frame.
+  function onScroll() {
+    updateScrollState();
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => { frame.current = 0; placeForScroll(); });
+  }
+  React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  // The student scrolling the scene themselves: a wheel, a touch drag or a
+  // chevron. The scene's own centring and panning don't count.
+  const markScrolled = () => { opening.current = { ...opening.current, userScrolled: true }; };
+
+  // Where the scene sits when its layout changes; openingMove decides. A
+  // grove's trees centre it the first time they appear (it loads after Home
+  // can mount), never on later changes in the same grove and never once the
+  // student has scrolled. Centring is instant, before paint: on a phone, on
+  // the first tree, so the second and third peek in at the edges as a cue to
+  // swipe; on a wider screen, on the first copy of the plate. Then, if a
+  // tree was just planted or just grew, pan to it so the moment is on
+  // screen. That pan follows .noscroll's scroll-behavior in theme.js:
+  // smooth, or instant under the OS reduced-motion setting.
+  React.useLayoutEffect(() => {
+    const el = treeRowRef.current;
+    if (!el || !layout) return;
+    const focus = layout.trees.find((t) => justPlantedIds.includes(t.id)) || layout.trees.find((t) => grewIds.includes(t.id));
+    // The plate is part of the key: turning the phone is a new scene to open.
+    const move = openingMove(opening.current, { key: `${layout.kind}:${preview ? "sample" : activeGroveId || ""}`, hasTrees: has, focusId: focus ? focus.id : null });
+    opening.current = move.state;
+    if (move.centre) {
+      const prev = el.style.scrollBehavior;
+      el.style.scrollBehavior = "auto";
+      const first = layout.trees[0];
+      el.scrollLeft = Math.max(0, view.vw < 600 && first ? first.footX - el.clientWidth / 2 : (layout.tileW - el.clientWidth) / 2);
+      el.style.scrollBehavior = prev;
+    }
+    if (move.panTo && focus) el.scrollTo({ left: Math.max(0, focus.footX - el.clientWidth / 2) });
+    updateScrollState();
+    placeForScroll();
+  }, [layoutKey, updateScrollState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // No explicit `behavior` here on purpose: `.noscroll`'s scroll-behavior in
   // theme.js governs smooth-vs-instant, and already flips to instant under
@@ -37,62 +157,57 @@ export default function GroveScene({ g }) {
   function scrollTreeRow(dir) {
     const el = treeRowRef.current;
     if (!el) return;
+    markScrolled();
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 2 / 3) });
   }
 
+  let plantedIndex = 0;
   return (
-    <div style={{ margin: "16px 20px 0", borderRadius: 22, overflow: "hidden", boxShadow: "0 18px 38px rgba(58,42,32,.18), 0 2px 6px rgba(58,42,32,.08)", border: `1px solid ${C.line}` }}>
-      <div style={{ position: "relative", minHeight: has ? 300 : 264, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-        <GroveBackdrop />
-        {has ? (
-          <div style={{ position: "relative", zIndex: 1 }}>
-          <div ref={treeRowRef} onScroll={updateScrollState} className="noscroll" style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-end", justifyContent: scrolls ? "flex-start" : "center", gap: 0, padding: "28px 10px 12px", overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-              {(() => { let plantedIndex = 0; return ordered.map((c) => {
-                const justPlanted = justPlantedIds.includes(c.id);
-                const style = { border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", transformOrigin: "50% 100%", display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 84 };
-                if (justPlanted) style.animationDelay = `${Math.min(plantedIndex++, 6) * 50}ms`;
-                return (
-                  <button key={c.id} onClick={() => setSelected(c.id)} className={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""} style={style} title={c.name}>
-                    <Tree days={c.days} mastery={c.mastery} width={68} />
-                    <span className="treeLabel" title={c.name}>{c.name}</span>
-                  </button>
-                );
-              }); })()}
-            </div>
-            </div>
-          ) : (
-            <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "center", padding: "0 20px 16px" }}>
-              <Tree days={0} mastery={0} width={78} />
-            </div>
-          )}
-      </div>
-      <div style={{ background: C.card, borderTop: `1px solid ${C.line}`, padding: "11px 14px", textAlign: "center" }}>
-        {has ? (
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {/* Reserved-width slots at the outer edges keep the text centred
-                whether zero, one, or two arrows are showing. Which arrow
-                shows follows the real scroll position: only right at the
-                start, only left at the end, both in between, none if
-                everything already fits. */}
-            <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-start", visibility: canScrollLeft ? "visible" : "hidden", cursor: canScrollLeft ? "pointer" : "default" }}>
-              <Icon name="chevronLeft" size={16} color={C.primaryDeep} strokeWidth={3} />
-            </button>
-            <div style={{ flex: 1, fontSize: 11.5, fontWeight: 700, color: C.sub }}>Taller = more sessions</div>
-            <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" style={{ width: 22, border: "none", background: "transparent", padding: 0, display: "flex", justifyContent: "flex-end", visibility: canScrollRight ? "visible" : "hidden", cursor: canScrollRight ? "pointer" : "default" }}>
-              <Icon name="chevronRight" size={16} color={C.primaryDeep} strokeWidth={3} />
-            </button>
+    <div className={portrait ? "scene portrait" : "scene"}>
+      {layout && (
+        <div ref={treeRowRef} onScroll={onScroll} onWheel={markScrolled} onTouchMove={markScrolled} className={layout.pans ? "sceneScroller noscroll" : "sceneScroller noscroll still"}>
+          <div className="scenePlates" style={{ width: layout.width, height: plate.h, top: offsetTop }}>
+            {/* Each copy shows its window of the plate; odd copies are mirrored. */}
+            {Array.from({ length: layout.tiles }, (_, k) => (
+              // A pixel of overlap, so a fractional copy width never leaves a hairline between copies.
+              <div key={k} className="scenePlateWindow" style={{ left: Math.floor(k * layout.tileW), width: Math.ceil(layout.tileW) + 1, height: plate.h, transform: k % 2 ? "scaleX(-1)" : undefined }}>
+                <img className="scenePlate" src={layout.src} alt="" width={Math.round(plate.w)} height={Math.round(plate.h)} draggable={false} style={{ left: layout.plateLeft, width: plate.w, height: plate.h, filter: layout.tone ? `saturate(${layout.tone.saturation}) brightness(${layout.tone.brightness})` : undefined }} />
+              </div>
+            ))}
+            {layout.trees.map((t, i) => {
+              const c = concepts[i];
+              const justPlanted = justPlantedIds.includes(c.id);
+              const delay = justPlanted ? `${Math.min(plantedIndex++, 6) * 50}ms` : undefined;
+              return (
+                <SceneTree
+                  key={c.id}
+                  t={t}
+                  c={c}
+                  label={labels.pos[c.id]}
+                  labelShown={labels.shown.has(c.id)}
+                  showStage={layout.showStage}
+                  portrait={portrait}
+                  labelRef={(el) => { labelRefs.current[c.id] = el; }}
+                  animClass={justPlanted ? "planted" : grewIds.includes(c.id) ? "grew" : ""}
+                  delay={delay}
+                  onOpen={() => setSelected(c.id)}
+                />
+              );
+            })}
           </div>
-        ) : (
-          <>
-            <div className="disp" style={{ fontSize: 18, fontWeight: 600, color: C.ink }}>A quiet, empty grove</div>
-            <div style={{ fontSize: 13, color: C.sub, fontWeight: 700, marginTop: 4, lineHeight: 1.5, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>Add what you're studying below. Grove asks you questions instead of handing over answers, which is what makes it stick.</div>
-          </>
-        )}
-      </div>
-      {has && (
-        <div style={{ background: C.card, display: "flex", justifyContent: "space-around", padding: "13px 8px", fontSize: 12.5 }}>
-          <div style={{ textAlign: "center" }}><div className="disp" style={{ fontWeight: 700, fontSize: 18 }}>{concepts.length}</div><div style={{ color: C.sub, fontWeight: 700 }}>Planted</div></div>
         </div>
+      )}
+      <div className="sceneFade" />
+      {has && (
+        <>
+          {/* Each chevron shows only while the scene can pan that way. */}
+          <button onClick={() => scrollTreeRow(-1)} disabled={!canScrollLeft} aria-label="Scroll trees left" className="sceneChevron left" style={{ visibility: canScrollLeft ? "visible" : "hidden" }}>
+            <Icon name="chevronLeft" size={18} color="#234d3b" strokeWidth={2.4} />
+          </button>
+          <button onClick={() => scrollTreeRow(1)} disabled={!canScrollRight} aria-label="Scroll trees right" className="sceneChevron right" style={{ visibility: canScrollRight ? "visible" : "hidden" }}>
+            <Icon name="chevronRight" size={18} color="#234d3b" strokeWidth={2.4} />
+          </button>
+        </>
       )}
     </div>
   );
