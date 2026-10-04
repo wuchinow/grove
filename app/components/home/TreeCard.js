@@ -3,7 +3,7 @@
 import { C } from "../../lib/theme";
 import { growthLabel } from "../../lib/ai";
 import { stageOf, STAGE_MAX } from "../../lib/growth";
-import Tree from "../Tree";
+import TreeArt from "../TreeArt";
 import Icon from "../Icon";
 import ModalCard, { Eyebrow } from "../ui/ModalCard";
 import PillButton from "../ui/PillButton";
@@ -18,7 +18,7 @@ export default function TreeCard({ g }) {
   return (
     <ModalCard onClose={() => setSelected(null)} maxWidth={420} zIndex={20}>
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ background: C.soft, borderRadius: 16, padding: 4, flexShrink: 0 }}><Tree days={c.days} mastery={c.mastery} width={64} /></div>
+        <div style={{ background: C.soft, borderRadius: 16, padding: 6, flexShrink: 0 }}><TreeArt stage={stageOf(c.days)} size={76} concept={c} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <Eyebrow>{growthLabel(c.days)}</Eyebrow>
           <div className="disp" style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.2, marginTop: 5, overflowWrap: "anywhere" }}>{c.name}</div>

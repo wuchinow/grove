@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "../components/Tree";
+import TreeArt from "../components/TreeArt";
 import { Shell } from "../components/Shell";
 
 // A long document's local extraction and section-grouping steps can take a
@@ -27,7 +27,7 @@ export default function Processing({ g }) {
     <Shell>
       <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 30 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ display: "inline-block", background: C.soft, borderRadius: 999, padding: "14px 16px 6px" }}><Tree days={3} mastery={60} width={84} /></div>
+          <div style={{ display: "inline-block", background: C.soft, borderRadius: 999, padding: 18 }}><TreeArt stage={7} size={104} /></div>
           <div className="disp" style={{ fontSize: 24, fontWeight: 500, marginTop: 16 }}>{title}</div>
           <div style={{ color: C.sub, marginTop: 6, fontSize: 14.5, display: "inline-flex", alignItems: "baseline", gap: 7 }}>
             <span>{sub}</span>

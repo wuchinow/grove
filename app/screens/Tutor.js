@@ -3,7 +3,8 @@
 import React from "react";
 import { C } from "../lib/theme";
 import { growthLabel } from "../lib/ai";
-import Tree from "../components/Tree";
+import TreeArt from "../components/TreeArt";
+import { stageOf } from "../lib/growth";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 import StaffNotation from "../components/StaffNotation";
@@ -235,7 +236,7 @@ export default function Tutor({ g }) {
             </div>
           </div>
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ background: C.soft, borderRadius: 12, padding: 2, flexShrink: 0 }}><Tree days={active ? active.days : 0} mastery={active ? active.mastery : 0} width={44} /></div>
+            <div style={{ background: C.soft, borderRadius: 12, padding: 4, flexShrink: 0 }}><TreeArt stage={active ? stageOf(active.days) : 0} size={50} concept={active} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="disp" style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, overflowWrap: "anywhere" }}>{active ? active.name : ""}</div>
               <div style={{ fontSize: 12.5, color: C.sub, marginTop: 3 }}>

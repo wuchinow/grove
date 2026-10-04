@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "./Tree";
+import TreeArt from "./TreeArt";
 import Icon from "./Icon";
 import { PopCard, CloseButton } from "./ui/ModalCard";
 import PillButton from "./ui/PillButton";
@@ -29,7 +29,7 @@ export default function GroveSwitcher({ g, onClose }) {
           const isActive = gr.id === activeGroveId;
           return (
             <div key={gr.id} style={{ background: isActive ? C.soft : "rgba(255,255,255,.55)", border: `1px solid ${isActive ? "#7d9860" : C.line}`, borderRadius: 13, padding: "9px 10px", display: "flex", alignItems: "center", gap: 9 }}>
-              <div style={{ background: C.card, borderRadius: 9, padding: 3, flexShrink: 0 }}><Tree days={gr.treeCount} mastery={gr.treeCount ? 60 : 0} width={26} /></div>
+              <div style={{ background: C.card, borderRadius: 9, padding: 3, flexShrink: 0 }}><TreeArt stage={gr.treeCount ? 7 : 0} size={32} /></div>
               <button
                 onClick={() => (editingId === gr.id ? null : (openGrove(gr.id), onClose()))}
                 style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: 0, color: C.ink }}

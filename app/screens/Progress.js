@@ -4,7 +4,7 @@ import React from "react";
 import { C } from "../lib/theme";
 import { statusOf, growthLabel, canopyColor } from "../lib/ai";
 import { stageOf, STAGE_MAX, STAGE_NAMES } from "../lib/growth";
-import Tree from "../components/Tree";
+import TreeArt from "../components/TreeArt";
 import { Shell, Logo } from "../components/Shell";
 import Icon from "../components/Icon";
 import Card from "../components/ui/Card";
@@ -77,7 +77,7 @@ export default function Progress({ g }) {
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                 {strong.map((c) => (
                   <Card key={c.id} style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                    <Tree days={c.days} mastery={c.mastery} width={34} />
+                    <TreeArt stage={stageOf(c.days)} size={40} concept={c} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500, fontSize: 15 }}>{c.name}</div>
                       <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>{growthLabel(c.days)} &middot; {statusOf(c.mastery)}</div>
@@ -95,7 +95,7 @@ export default function Progress({ g }) {
               <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                 {needs.slice(0, 4).map((c) => (
                   <Card as="button" key={c.id} onClick={() => { setScreen("home"); startSession([c.id], concepts); }} style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                    <Tree days={c.days} mastery={c.mastery} width={34} />
+                    <TreeArt stage={stageOf(c.days)} size={40} concept={c} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 500, fontSize: 15, color: C.ink }}>{c.name}</div>
                       <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>{statusOf(c.mastery)}</div>

@@ -251,6 +251,23 @@ def open_topic_field(page):
     return page.get_by_placeholder("A topic, or paste a URL")
 
 
+def assert_tree_art(page, label, at_least=1):
+    """Every tree outside the Home scene is the painted cut-out (TreeArt). The
+    old code-drawn tree (Tree.js, an <svg viewBox="0 0 100 132">) is gone, so
+    none may render, and every painted tree's image must have loaded."""
+    page.wait_for_function("[...document.querySelectorAll('.treeArt img')].every((i) => i.complete)", timeout=10000)
+    art = page.evaluate("""
+    () => ({
+      old: document.querySelectorAll('svg[viewBox="0 0 100 132"]').length,
+      trees: [...document.querySelectorAll('.treeArt img')].map((i) => ({ src: i.getAttribute('src'), alt: i.alt, loaded: i.naturalWidth > 0 })),
+    })
+    """)
+    assert art["old"] == 0, f"[{label}] {art['old']} old vector tree(s) still render"
+    assert len(art["trees"]) >= at_least, f"[{label}] expected at least {at_least} painted tree(s), found {len(art['trees'])}"
+    broken = [t for t in art["trees"] if not t["loaded"] or not t["alt"]]
+    assert not broken, f"[{label}] painted trees that didn't load or have no alt text: {broken}"
+
+
 def assert_bar_fits(page, width, label):
     """The Home bar must sit inside the viewport with every button inside the
     bar - the three labels are the widest thing on Home at 320px."""
@@ -301,6 +318,7 @@ def run(base_url: str, out_dir: Path):
             topic_input.press("Enter")
             page.wait_for_selector("text=Here's what I found", timeout=10000)
             page.screenshot(path=str(out_dir / f"confirm-{width}.png"), full_page=True)
+            assert_tree_art(page, f"confirm {width}px", at_least=2)
 
             # The dashed "Add your own concept" card, opened inline.
             add_btn = page.get_by_text("+ Add your own concept")
@@ -314,6 +332,7 @@ def run(base_url: str, out_dir: Path):
             page.get_by_role("button", name=re.compile(r"^Plant \d+ trees?$")).click()
             page.wait_for_selector("text=What is 2 + 2", timeout=10000)
             page.screenshot(path=str(out_dir / f"tutor-{width}.png"), full_page=True)
+            assert_tree_art(page, f"tutor {width}px")
 
             # Snake only shows in AccountMenu for signed-in/legacy students
             # (guests get a plain "Sign in" button, no "Account" dropdown at

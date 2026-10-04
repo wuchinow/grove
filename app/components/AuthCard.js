@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "./Tree";
+import TreeArt from "./TreeArt";
 import Icon from "./Icon";
 import ModalCard from "./ui/ModalCard";
 import PillButton from "./ui/PillButton";
@@ -69,7 +69,7 @@ export default function AuthCard({ g }) {
     <ModalCard onClose={close} dismissable={!mustFinish}>
       {authCard === "welcome" && (
         <>
-          <div style={{ display: "flex", justifyContent: "center" }}><Tree days={3} mastery={80} width={72} /></div>
+          <div style={{ display: "flex", justifyContent: "center" }}><TreeArt stage={7} size={96} /></div>
           <div className="disp" style={{ ...title, textAlign: "center", marginTop: 8 }}>Welcome to Grove</div>
           <div style={{ ...lede, textAlign: "center" }}>
             Sign in to keep your grove between visits, or look around first.

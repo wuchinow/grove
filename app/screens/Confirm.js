@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../lib/theme";
-import Tree from "../components/Tree";
+import TreeArt from "../components/TreeArt";
 import { Shell, Logo } from "../components/Shell";
 import Card, { Chip } from "../components/ui/Card";
 import Field from "../components/ui/Field";
@@ -53,7 +53,7 @@ export default function Confirm({ g }) {
           <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingBottom: 26, WebkitMaskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)", maskImage: "linear-gradient(to bottom, black calc(100% - 26px), transparent 100%)" }}>
             {pending.map((c, i) => (
               <Card key={i} className="fadeUp" style={{ padding: "11px 12px 11px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                <Tree days={0} mastery={0} width={28} />
+                <TreeArt stage={0} size={34} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500, fontSize: 15, overflowWrap: "anywhere" }}>{c.name}</div>
                   {c.note && <div style={{ color: C.sub, fontSize: 12.5, marginTop: 2, overflowWrap: "anywhere" }}>{c.note}</div>}

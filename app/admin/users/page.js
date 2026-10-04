@@ -2,7 +2,7 @@
 
 import React from "react";
 import { C } from "../../lib/theme";
-import Tree from "../../components/Tree";
+import TreeArt from "../../components/TreeArt";
 import Icon from "../../components/Icon";
 import { Card, Segbar, bandColor, ago } from "../ui";
 
@@ -158,7 +158,7 @@ export default function UsersPage() {
                       {s.groves.map((g) => (
                         <div key={g.id} style={{ padding: "7px 0", borderBottom: `1px solid ${C.line}` }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                            <Tree days={g.sessions} mastery={g.concepts ? 60 : 0} width={22} />
+                            <TreeArt stage={g.concepts ? 7 : 0} size={28} />
                             <span style={{ fontWeight: 700, flex: 1 }}>{g.name}</span>
                             <span style={{ color: C.sub }}>{g.concepts} concepts &middot; {g.sessions} sessions &middot; {ago(g.updated_at)}</span>
                           </div>
