@@ -626,7 +626,7 @@ test("only the four youngest stages get the young-tree look", () => {
   for (const stage of [4, 5, 6, 7]) assert.equal(youngLook(stage), null);
   for (const stage of [0, 1, 2, 3]) {
     const look = youngLook(stage);
-    assert.match(look.filter, /^contrast\([\d.]+\) brightness\([\d.]+\) saturate\([\d.]+\) drop-shadow\(0 0 [\d.]+px rgba\(250, 252, 240, [\d.]+\)\)$/);
+    assert.match(look.filter, /^contrast\([\d.]+\) brightness\([\d.]+\) saturate\([\d.]+\)(?: drop-shadow\(0 0 [\d.]+px rgba\(\d+, \d+, \d+, [\d.]+\)\)){2}$/);
     assert.ok(look.shadowSize > 1 && look.shadowOpacity > 0.55);
   }
 });

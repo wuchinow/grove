@@ -1,7 +1,7 @@
 "use client";
 
 import Icon from "../Icon";
-import { treeArt, youngLook } from "../../lib/scene";
+import { treeArt, treeTone, youngLook } from "../../lib/scene";
 import { stageName } from "../../lib/growth";
 
 // One tree on the scene: its painted cut-out standing on its anchor, a soft
@@ -14,9 +14,9 @@ import { stageName } from "../../lib/growth";
 export default function SceneTree({ t, c, label, labelShown, showStage = true, portrait = false, labelRef, animClass, delay, onOpen }) {
   // The portrait plate's grass is brighter, so its shadows are wider and
   // fall further right (ui.css darkens them too).
-  // Young trees there (stages 1 to 3) get a larger, stronger shadow and a
-  // filter of their own; see youngLook in lib/scene.js.
-  const young = portrait ? youngLook(t.stage) : null;
+  // Young trees (stages 0 to 3) on either plate get a larger, stronger
+  // shadow and a filter of their own; see youngLook in lib/scene.js.
+  const young = youngLook(t.stage);
   const grow = young ? young.shadowSize : 1;
   const sw = Math.max(portrait ? 20 : 18, t.w * (portrait ? 0.8 : 0.62)) * grow;
   const sh = Math.max(portrait ? 7 : 6, t.w * (portrait ? 0.16 : 0.13)) * grow;
@@ -50,7 +50,7 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
         height={Math.round(t.h)}
         draggable={false}
         className={animClass ? `sceneTreeImg ${animClass}` : "sceneTreeImg"}
-        style={{ filter: young ? young.filter : undefined, zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
+        style={{ filter: young ? young.filter : treeTone, zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
       />
       {lead && <span className="treeLead" style={{ left: fx, top: fy, width: lead.length, transform: `rotate(${lead.angle}rad)`, zIndex: 999 }} />}
       {portrait && <span className="treePin" style={{ left: fx - 3.5, top: fy - 3.5, zIndex: 1000 + t.z }} />}
