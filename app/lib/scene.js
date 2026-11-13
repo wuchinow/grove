@@ -309,7 +309,7 @@ export const PORTRAIT = {
   // grass, and a larger, stronger ground shadow. Tuned by eye.
   young: {
     stages: [0, 1, 2, 3],
-    filter: { contrast: 1.2, brightness: 0.82, saturation: 1.2 },
+    filter: { contrast: 1.2, brightness: 0.72, saturation: 1.2 },
     halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.6 },
     shadow: { size: 1.4, opacity: 0.8 },
   },
@@ -559,6 +559,12 @@ export function sceneLayout(concepts, vw, vh) {
   // bottom, where the meadow is, and lose sky.
   return { kind, src: PLATES.wide.src, plate, plateLeft: -layout.crop.left * plate.w, offsetTop: Math.min(0, vh - plate.h), pans: true, showStage: true, ...layout };
 }
+
+// Every other tree on either plate is drawn a shade darker and a little
+// greener than painted, so its canopy reads against the grass (the painted
+// oaks are about as light as the meadow). Tuned by eye.
+export const TREE_TONE = { brightness: 0.72, saturation: 1.15, contrast: 1.05 };
+export const treeTone = `contrast(${TREE_TONE.contrast}) brightness(${TREE_TONE.brightness}) saturate(${TREE_TONE.saturation})`;
 
 // The extra presence a young tree gets on the portrait plate, as CSS: null
 // for the planted mark and for the grown stages, which are drawn as painted.

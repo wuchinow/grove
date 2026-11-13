@@ -1,7 +1,7 @@
 "use client";
 
 import Icon from "../Icon";
-import { treeArt, youngLook } from "../../lib/scene";
+import { treeArt, treeTone, youngLook } from "../../lib/scene";
 import { stageName } from "../../lib/growth";
 
 // One tree on the scene: its painted cut-out standing on its anchor, a soft
@@ -50,7 +50,7 @@ export default function SceneTree({ t, c, label, labelShown, showStage = true, p
         height={Math.round(t.h)}
         draggable={false}
         className={animClass ? `sceneTreeImg ${animClass}` : "sceneTreeImg"}
-        style={{ filter: young ? young.filter : undefined, zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
+        style={{ filter: young ? young.filter : treeTone, zIndex: t.z * 2 + 1, transformOrigin: `${t.art.footX * 100}% ${t.art.footY * 100}%`, animationDelay: delay }}
       />
       {lead && <span className="treeLead" style={{ left: fx, top: fy, width: lead.length, transform: `rotate(${lead.angle}rad)`, zIndex: 999 }} />}
       {portrait && <span className="treePin" style={{ left: fx - 3.5, top: fy - 3.5, zIndex: 1000 + t.z }} />}
