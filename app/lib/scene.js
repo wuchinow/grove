@@ -32,7 +32,7 @@ export const REPEAT = { left: 0.12, right: 0.88 };
 export const FULL_HEIGHT = 0.4;
 // The planted stage is a soil mound with a seedling just coming up; it is drawn
 // at about 0.65 of the sprout's height, so it reads as just planted.
-export const STAGE_CURVE = [0.14, 0.21, 0.3, 0.41, 0.52, 0.66, 0.82, 1];
+export const STAGE_CURVE = [0.19, 0.28, 0.33, 0.42, 0.52, 0.66, 0.82, 1];
 
 // The seven anchors on this plate, in fill order: x and the foot's y as
 // fractions of the plate, depth as a scale (far rows are smaller). The first
@@ -285,7 +285,7 @@ export const PORTRAIT = {
   fullHeight: 0.24,
   // Each stage's share of full size. Higher at the bottom than the wide
   // plate's STAGE_CURVE, so the youngest trees stay legible on a phone.
-  stageCurve: [0.17, 0.26, 0.33, 0.42, 0.54, 0.67, 0.83, 1],
+  stageCurve: [0.22, 0.32, 0.36, 0.45, 0.54, 0.67, 0.83, 1],
   // The plate is drawn a little darker and less saturated than it was
   // painted, so the oaks stand out from the grass. Tuned by eye; the real fix
   // for young trees blending in is in the art.
@@ -305,12 +305,16 @@ export const PORTRAIT = {
   // The planted seedling, sprout, seedling and sapling have thin stems and sparse yellow-green
   // leaves that sink into the grass, so those stages alone get a little more
   // presence: a filter that sets the leaves a shade darker and greener than
-  // the calmed plate, a very soft cream halo so the stem separates from the
+  // the calmed plate, a soft warm glow so the stem separates from the
   // grass, and a larger, stronger ground shadow. Tuned by eye.
   young: {
     stages: [0, 1, 2, 3],
-    filter: { contrast: 1.2, brightness: 0.72, saturation: 1.2 },
-    halo: { blur: 1.5, color: "250, 252, 240", opacity: 0.6 },
+    filter: { contrast: 1.2, brightness: 0.5, saturation: 1.4 },
+    // A soft warm glow behind the leaves: a tight inner ring and a wider outer one.
+    glow: [
+      { blur: 3, color: "255, 248, 205", opacity: 0.9 },
+      { blur: 8, color: "255, 244, 190", opacity: 0.55 },
+    ],
     shadow: { size: 1.4, opacity: 0.8 },
   },
   // 8 to 12 trees: each tree past the seventh shrinks them all this much.
@@ -572,7 +576,7 @@ export function youngLook(stage) {
   const y = PORTRAIT.young;
   if (!y.stages.includes(stage)) return null;
   return {
-    filter: `contrast(${y.filter.contrast}) brightness(${y.filter.brightness}) saturate(${y.filter.saturation}) drop-shadow(0 0 ${y.halo.blur}px rgba(${y.halo.color}, ${y.halo.opacity}))`,
+    filter: `contrast(${y.filter.contrast}) brightness(${y.filter.brightness}) saturate(${y.filter.saturation}) ${y.glow.map((g) => `drop-shadow(0 0 ${g.blur}px rgba(${g.color}, ${g.opacity}))`).join(" ")}`,
     shadowSize: y.shadow.size,
     shadowOpacity: y.shadow.opacity,
   };
