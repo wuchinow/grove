@@ -48,6 +48,25 @@ export const ANCHORS = [
   { x: 0.83, y: 0.6, depth: 0.8 },    // middle row, right
 ];
 
+// A plate copy with fewer than seven trees spreads them evenly instead of
+// leaving the unused anchors as gaps: per count, the spots in planting
+// order, evenly spaced across the meadow and balanced about its centre, on
+// the same three rows as the anchors. Planting or removing a tree on a
+// partly filled copy can move its other trees; growing never does.
+const far = (x) => ({ x, y: 0.475, depth: 0.62 });
+const mid = (x) => ({ x, y: x >= 0.8 ? 0.6 : 0.585, depth: 0.8 });
+const near = (x) => ({ x, y: 0.71, depth: 0.96 });
+export const SPOTS = [
+  [],
+  [mid(0.5)],
+  [mid(0.38), mid(0.62)],
+  [mid(0.5), near(0.3), near(0.7)],
+  [near(0.4), near(0.6), mid(0.2), mid(0.8)],
+  [mid(0.5), near(0.35), near(0.65), mid(0.2), mid(0.8)],
+  [far(0.44), far(0.56), near(0.32), near(0.68), mid(0.2), mid(0.8)],
+  ANCHORS,
+];
+
 // The anchors' average horizontal gap, as a fraction of the plate width. The
 // scene ends this far past its right-most tree.
 export const ANCHOR_SPACING = (Math.max(...ANCHORS.map((a) => a.x)) - Math.min(...ANCHORS.map((a) => a.x))) / (ANCHORS.length - 1);
@@ -64,9 +83,8 @@ export function plateSize(vw, vh) {
   return { w: Math.round(h * PLATE_ASPECT), h: Math.round(h) };
 }
 
-// Every tree's place, in plate pixels. A tree takes the anchor of its
-// position in `concepts`, so growing never moves it (removing one does: every
-// tree after it moves up an anchor). `z` orders drawing back to front.
+// Every tree's place, in plate pixels. A tree takes the spot of its
+// position in `concepts` (see SPOTS), so growing never moves it. `z` orders drawing back to front.
 // The scene ends one anchor spacing past its right-most tree, so it doesn't
 // pan on into empty plate; never narrower than one full copy, and never past
 // the last copy's painted edge.
@@ -78,7 +96,9 @@ export function layoutScene(concepts, plateW, plateH) {
   const tileW = (crop.right - crop.left) * plateW;
   const trees = concepts.map((c, i) => {
     const tile = Math.floor(i / per);
-    const a = ANCHORS[i % per];
+    // A full copy uses the anchors; the last, partly filled one its count's spots.
+    const onTile = Math.min(per, concepts.length - tile * per);
+    const a = SPOTS[onTile][i % per];
     const mirrored = tile % 2 === 1;
     const stage = stageOf(c.days);
     const species = speciesOf(c);

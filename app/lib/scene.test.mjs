@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ANCHORS, ANCHOR_SPACING, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
+  ANCHORS, ANCHOR_SPACING, SPOTS, FULL_HEIGHT, LABEL_EDGE, LABEL_ENTER, OPENING, PLATES, PLATE_ASPECT, PORTRAIT, PORTRAIT_ANCHORS, REPEAT, STAGE_CURVE,
   CANOPY_FROM_STAGE, canopyOf, coveredTrunks, crossesPath, layoutPortrait, layoutScene, openingMove, panLabels, pathDistance, pathEdges, placeLabels, plateFor, plateSize, portraitScale, portraitSpots, sceneLayout, speciesOf, treeArt, trunkBase, youngLook,
 } from "./scene.js";
 import { SCENE_ART } from "./scene-art.js";
@@ -16,14 +16,15 @@ test("the plate is as tall as the viewport, wider when the window is very wide",
   assert.equal(wide.h > 800, true);
 });
 
-test("trees take anchors in planting order, one plate copy per seven", () => {
+test("trees take their count's spots in planting order, one plate copy per seven", () => {
   const { tiles, width, trees: placed } = layoutScene(trees(3), 1000, 500);
   assert.equal(tiles, 1);
   assert.equal(width, 1000);
   placed.forEach((t, i) => {
-    assert.equal(t.footX, ANCHORS[i].x * 1000);
-    assert.equal(t.footY, ANCHORS[i].y * 500);
+    assert.equal(t.footX, SPOTS[3][i].x * 1000);
+    assert.equal(t.footY, SPOTS[3][i].y * 500);
   });
+  layoutScene(trees(7), 1000, 500).trees.forEach((t, i) => assert.equal(t.footX, ANCHORS[i].x * 1000));
   assert.equal(layoutScene([], 1000, 500).tiles, 1);
   assert.equal(layoutScene(trees(7), 1000, 500).tiles, 1);
   assert.equal(layoutScene(trees(8), 1000, 500).tiles, 2);
@@ -70,11 +71,26 @@ test("trees draw back to front", () => {
   for (let i = 1; i < byZ.length; i++) assert.ok(byZ[i].footY >= byZ[i - 1].footY);
 });
 
-test("removing a tree moves every later tree up an anchor", () => {
-  const before = layoutScene(trees(4), 1000, 600).trees;
+test("removing a tree respreads the rest on its copy, and leaves full copies alone", () => {
   const after = layoutScene(trees(4).filter((c) => c.id !== "c1"), 1000, 600).trees;
-  assert.equal(after.find((t) => t.id === "c0").footX, before.find((t) => t.id === "c0").footX);
-  assert.equal(after.find((t) => t.id === "c2").footX, before.find((t) => t.id === "c1").footX);
+  after.forEach((t, i) => assert.equal(t.footX, SPOTS[3][i].x * 1000));
+  const before = layoutScene(trees(9), 1000, 600).trees;
+  const less = layoutScene(trees(9).filter((c) => c.id !== "c8"), 1000, 600).trees;
+  for (let i = 0; i < 7; i++) assert.equal(less[i].footX, before[i].footX);
+});
+
+test("a partly filled plate spreads its trees evenly and balanced about the centre", () => {
+  for (let k = 1; k <= 7; k++) {
+    const xs = SPOTS[k].map((a) => a.x).sort((p, q) => p - q);
+    assert.equal(xs.length, k);
+    // Balanced: the spots mirror about the plate's centre.
+    xs.forEach((x, i) => assert.ok(Math.abs(x + xs[k - 1 - i] - 1) < 1e-9, `${k} trees: ${xs}`));
+    // Even: no gap between neighbours is more than twice another.
+    const gaps = xs.slice(1).map((x, i) => x - xs[i]);
+    if (gaps.length > 1) assert.ok(Math.max(...gaps) <= 2 * Math.min(...gaps), `${k} trees: gaps ${gaps}`);
+    // Every spot is on one of the anchors' rows.
+    for (const a of SPOTS[k]) assert.ok(ANCHORS.some((b) => b.depth === a.depth), `${k} trees: depth ${a.depth}`);
+  }
 });
 
 test("one species for now, and its art exists for all eight stages", () => {
@@ -221,10 +237,10 @@ test("the scene ends one anchor spacing past its right-most tree", () => {
   // 3 and 7 trees: one whole plate; the last anchor plus a spacing fits inside it.
   close(layoutScene(trees(3), W, 500).width, W);
   close(layoutScene(trees(7), W, 500).width, W);
-  // 10 trees: the mirrored copy's first three anchors, the right-most at
-  // REPEAT.right - 0.38, then one spacing.
+  // 10 trees: the mirrored copy's three spots, the right-most at
+  // REPEAT.right - 0.3, then one spacing.
   const ten = layoutScene(trees(10), W, 500);
-  close(ten.width, copy + (REPEAT.right - 0.38) * W + ANCHOR_SPACING * W);
+  close(ten.width, copy + (REPEAT.right - 0.3) * W + ANCHOR_SPACING * W);
   assert.ok(ten.width < 2 * copy);
   // 14 trees: the right-most foot plus a spacing would run past the second
   // copy's edge, so the scene stops at the end of both copies.
