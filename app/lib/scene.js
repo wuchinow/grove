@@ -32,7 +32,7 @@ export const REPEAT = { left: 0.12, right: 0.88 };
 export const FULL_HEIGHT = 0.4;
 // The planted stage is a soil mound with a seedling just coming up; it is drawn
 // at about 0.65 of the sprout's height, so it reads as just planted.
-export const STAGE_CURVE = [0.11, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1];
+export const STAGE_CURVE = [0.14, 0.21, 0.3, 0.41, 0.52, 0.66, 0.82, 1];
 
 // The seven anchors on this plate, in fill order: x and the foot's y as
 // fractions of the plate, depth as a scale (far rows are smaller). The first
@@ -566,7 +566,7 @@ export function sceneLayout(concepts, vw, vh) {
 export const TREE_TONE = { brightness: 0.72, saturation: 1.15, contrast: 1.05 };
 export const treeTone = `contrast(${TREE_TONE.contrast}) brightness(${TREE_TONE.brightness}) saturate(${TREE_TONE.saturation})`;
 
-// The extra presence a young tree gets on the portrait plate, as CSS: null
+// The extra presence a young tree gets on either plate, as CSS: null
 // for the planted mark and for the grown stages, which are drawn as painted.
 export function youngLook(stage) {
   const y = PORTRAIT.young;

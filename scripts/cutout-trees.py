@@ -61,7 +61,7 @@ SOURCES = {"oak": {0: "stage-0 planted.png", 1: "stage-1 sprout.png", 2: "6.png"
 # desktop draws the full-grown oak about 450px tall, which this still covers
 # at about 1.7x.
 FULL_HEIGHT = 0.40
-STAGE_CURVE = [0.11, 0.17, 0.26, 0.38, 0.52, 0.66, 0.82, 1.0]
+STAGE_CURVE = [0.14, 0.21, 0.3, 0.41, 0.52, 0.66, 0.82, 1.0]
 # The two smallest stages are also drawn in lists and cards (TreeArt), and on
 # the portrait plate they have a height floor, so they are written no smaller
 # than this many px tall.

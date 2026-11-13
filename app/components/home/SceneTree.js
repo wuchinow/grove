@@ -14,9 +14,9 @@ import { stageName } from "../../lib/growth";
 export default function SceneTree({ t, c, label, labelShown, showStage = true, portrait = false, labelRef, animClass, delay, onOpen }) {
   // The portrait plate's grass is brighter, so its shadows are wider and
   // fall further right (ui.css darkens them too).
-  // Young trees there (stages 1 to 3) get a larger, stronger shadow and a
-  // filter of their own; see youngLook in lib/scene.js.
-  const young = portrait ? youngLook(t.stage) : null;
+  // Young trees (stages 0 to 3) on either plate get a larger, stronger
+  // shadow and a filter of their own; see youngLook in lib/scene.js.
+  const young = youngLook(t.stage);
   const grow = young ? young.shadowSize : 1;
   const sw = Math.max(portrait ? 20 : 18, t.w * (portrait ? 0.8 : 0.62)) * grow;
   const sh = Math.max(portrait ? 7 : 6, t.w * (portrait ? 0.16 : 0.13)) * grow;
